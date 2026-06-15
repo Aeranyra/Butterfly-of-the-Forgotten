@@ -1,41 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Butterfly of the Forgotten</title>
-
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&family=Cinzel:wght@400;600&display=swap" rel="stylesheet">
-
 <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
+<!-- 🦋 Butterfly Cursor Layer -->
+<div id="cursor"></div>
+<div id="trail"></div>
+
+<!-- BACKGROUND -->
 <div id="bg"></div>
 
-<div id="game">
-
-  <div id="box">
-    <div id="title"></div>
-    <div id="text"></div>
-  </div>
-
-  <div id="inputBox" style="display:none;">
-    <input id="nameInput" placeholder="Enter your name..." />
-    <div class="choice" onclick="submitName()">Continue</div>
-  </div>
-
-  <div id="choices"></div>
-
+<!-- UI -->
+<div id="ui">
+  <div id="screen"></div>
 </div>
 
-<div id="letter"></div>
-
+<!-- AUDIO -->
 <audio id="music" loop></audio>
 
 <script src="script.js"></script>
-
 </body>
 </html>
