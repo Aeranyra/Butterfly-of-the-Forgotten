@@ -1,67 +1,510 @@
-body {
-  margin: 0;
-  overflow: hidden;
-  font-family: Arial;
-  background: black;
-  color: white;
+/* =========================
+   GLOBAL
+========================= */
+
+*{
+    box-sizing:border-box;
 }
 
-/* 🌙 BACKGROUND */
-#bg {
-  position: fixed;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  filter: brightness(0.55);
-  transition: 1s;
+body{
+    margin:0;
+    overflow:hidden;
+
+    background:black;
+    color:white;
+
+    font-family:Georgia, serif;
+
+    cursor:none;
 }
 
-/* 🧠 UI */
-#ui {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+/* =========================
+   BACKGROUND
+========================= */
+
+#bg{
+    position:fixed;
+    inset:0;
+
+    background-size:cover;
+    background-position:center;
+
+    transition:1.5s ease;
+
+    filter:brightness(0.45);
+
+    z-index:-3;
 }
 
-/* 🦋 BUTTERFLY CURSOR */
-#cursor {
-  position: fixed;
-  width: 20px;
-  height: 20px;
-  pointer-events: none;
-  background-image: url("https://files.catbox.moe/4egrjl.jpg");
-  background-size: cover;
-  transform: translate(-50%, -50%);
-  z-index: 9999;
-  filter: drop-shadow(0 0 5px white);
+/* =========================
+   BUTTERFLY EFFECT LAYER
+========================= */
+
+#butterflyLayer{
+    position:fixed;
+    inset:0;
+
+    pointer-events:none;
+
+    z-index:3;
 }
 
-/* ✨ TRAIL */
-.butterfly-trail {
-  position: fixed;
-  width: 14px;
-  height: 14px;
-  background-image: url("https://files.catbox.moe/4egrjl.jpg");
-  background-size: cover;
-  pointer-events: none;
-  opacity: 0.7;
-  animation: fadeOut 1s linear forwards;
-  z-index: 9998;
+/* =========================
+   FADE
+========================= */
+
+#fade{
+    position:fixed;
+    inset:0;
+
+    background:black;
+
+    opacity:0;
+    pointer-events:none;
+
+    transition:1s;
+
+    z-index:999;
 }
 
-@keyframes fadeOut {
-  to {
-    opacity: 0;
-    transform: scale(0.3);
-  }
+/* =========================
+   HIDDEN CLASS
+========================= */
+
+.hidden{
+    display:none !important;
 }
 
-/* BUTTONS */
-button {
-  margin: 5px;
-  padding: 10px;
-  cursor: pointer;
+/* =========================
+   MENU
+========================= */
+
+#menuScreen{
+    position:fixed;
+    inset:0;
+
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+
+    text-align:center;
+}
+
+#gameTitle{
+    font-size:3rem;
+    letter-spacing:2px;
+
+    margin-bottom:10px;
+}
+
+#quote{
+    opacity:.85;
+
+    margin-bottom:35px;
+
+    font-style:italic;
+}
+
+#menuButtons{
+    display:flex;
+    flex-direction:column;
+
+    gap:12px;
+}
+
+#menuButtons button{
+    width:220px;
+}
+
+#clickBegin{
+    margin-top:40px;
+
+    opacity:.7;
+
+    animation:blink 2s infinite;
+}
+
+@keyframes blink{
+
+    0%{opacity:.2;}
+    50%{opacity:1;}
+    100%{opacity:.2;}
+
+}
+
+/* =========================
+   BUTTONS
+========================= */
+
+button{
+
+    background:rgba(0,0,0,.55);
+
+    color:white;
+
+    border:1px solid rgba(255,255,255,.3);
+
+    padding:12px;
+
+    cursor:pointer;
+
+    transition:.3s;
+}
+
+button:hover{
+
+    background:rgba(255,255,255,.1);
+
+}
+
+/* =========================
+   POPUPS
+========================= */
+
+.popup{
+
+    position:fixed;
+    inset:0;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    background:rgba(0,0,0,.75);
+
+    z-index:500;
+}
+
+.popupContent{
+
+    width:min(600px,90vw);
+
+    background:rgba(15,15,15,.95);
+
+    border:1px solid rgba(255,255,255,.2);
+
+    padding:30px;
+
+    text-align:center;
+}
+
+/* =========================
+   CHAPTER CARD
+========================= */
+
+#chapterCard{
+
+    position:fixed;
+    inset:0;
+
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+
+    text-align:center;
+
+    background:rgba(0,0,0,.85);
+
+    z-index:200;
+}
+
+#chapterNumber{
+
+    font-size:1.2rem;
+
+    letter-spacing:3px;
+}
+
+#chapterTitle{
+
+    font-size:2.3rem;
+
+    margin-top:10px;
+}
+
+#chapterSubtitle{
+
+    opacity:.8;
+
+    margin-top:10px;
+}
+
+/* =========================
+   GAME SCREEN
+========================= */
+
+#gameScreen{
+
+    position:fixed;
+    inset:0;
+
+    display:flex;
+    align-items:flex-end;
+}
+
+#textbox{
+
+    width:100%;
+
+    min-height:230px;
+
+    background:rgba(0,0,0,.7);
+
+    backdrop-filter:blur(4px);
+
+    padding:25px;
+}
+
+#chapter{
+
+    opacity:.7;
+
+    margin-bottom:10px;
+}
+
+#title{
+
+    font-size:1.3rem;
+
+    margin-bottom:15px;
+}
+
+#text{
+
+    line-height:1.7;
+
+    min-height:120px;
+}
+
+#choices{
+
+    margin-top:20px;
+
+    display:flex;
+    flex-direction:column;
+
+    gap:10px;
+}
+
+/* =========================
+   NAME INPUT
+========================= */
+
+#nameScreen{
+
+    position:fixed;
+    inset:0;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.nameBox{
+
+    width:min(450px,90vw);
+
+    background:rgba(0,0,0,.75);
+
+    padding:30px;
+
+    text-align:center;
+}
+
+#playerName{
+
+    width:100%;
+
+    margin:20px 0;
+
+    padding:12px;
+
+    background:black;
+
+    color:white;
+
+    border:1px solid #555;
+}
+
+/* =========================
+   ENDING
+========================= */
+
+#endingScreen{
+
+    position:fixed;
+    inset:0;
+
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+
+    text-align:center;
+
+    background:rgba(0,0,0,.85);
+}
+
+#endingMessage{
+
+    max-width:700px;
+
+    padding:20px;
+
+    line-height:1.8;
+}
+
+.endingButtons{
+
+    display:flex;
+    gap:10px;
+}
+
+/* =========================
+   LETTER SCREEN
+========================= */
+
+#letterScreen{
+
+    position:fixed;
+    inset:0;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    background:rgba(0,0,0,.92);
+
+    z-index:900;
+}
+
+#letterPaper{
+
+    width:min(700px,90vw);
+
+    min-height:500px;
+
+    background:rgba(255,248,220,.92);
+
+    color:black;
+
+    padding:40px;
+
+    overflow:auto;
+
+    box-shadow:0 0 40px black;
+}
+
+#letterText{
+
+    white-space:pre-line;
+
+    line-height:1.8;
+}
+
+/* =========================
+   CREDIT SCENE
+========================= */
+
+#creditScene{
+
+    position:fixed;
+    inset:0;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    text-align:center;
+
+    background:black;
+}
+
+#creditText{
+
+    max-width:800px;
+
+    padding:30px;
+
+    line-height:2;
+}
+
+/* =========================
+   BUTTERFLY CURSOR
+========================= */
+
+#butterflyCursor{
+
+    position:fixed;
+
+    width:24px;
+    height:24px;
+
+    pointer-events:none;
+
+    z-index:9999;
+
+    transform:translate(-50%,-50%);
+}
+
+#butterflyCursor::before{
+
+    content:"🦋";
+
+    font-size:22px;
+
+    position:absolute;
+}
+
+/* =========================
+   TRAIL
+========================= */
+
+.trail{
+
+    position:fixed;
+
+    pointer-events:none;
+
+    color:white;
+
+    opacity:.8;
+
+    animation:trailFade 1s linear forwards;
+}
+
+@keyframes trailFade{
+
+    from{
+        opacity:.8;
+        transform:scale(1);
+    }
+
+    to{
+        opacity:0;
+        transform:scale(.2);
+    }
+
+}
+
+/* =========================
+   MOBILE
+========================= */
+
+@media(max-width:768px){
+
+    #gameTitle{
+        font-size:2rem;
+    }
+
+    #chapterTitle{
+        font-size:1.6rem;
+    }
+
+    #textbox{
+        min-height:260px;
+    }
+
 }
