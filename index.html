@@ -13,10 +13,13 @@
 <!-- BACKGROUND -->
 <div id="bg"></div>
 
-<!-- FADE -->
+<!-- SCREEN FADE -->
 <div id="fade"></div>
 
-<!-- BUTTERFLY CURSOR -->
+<!-- BUTTERFLY EFFECTS -->
+<div id="butterflyLayer"></div>
+
+<!-- CURSOR -->
 <div id="butterflyCursor"></div>
 <div id="trailContainer"></div>
 
@@ -54,13 +57,12 @@
         Click anywhere to begin
     </p>
 
-    <!-- Menu Butterflies -->
     <div id="menuButterflies"></div>
 
 </div>
 
 <!-- =========================
-     HOW TO PLAY POPUP
+     HOW TO PLAY
 ========================= -->
 
 <div id="howPopup" class="popup hidden">
@@ -74,7 +76,7 @@
         <p>Protect your sanity.</p>
         <p>Some truths are better left forgotten.</p>
 
-        <button onclick="closeHowToPlay()">
+        <button id="closeHowBtn">
             Close
         </button>
 
@@ -83,7 +85,7 @@
 </div>
 
 <!-- =========================
-     CREDITS POPUP
+     MENU CREDITS
 ========================= -->
 
 <div id="creditsPopup" class="popup hidden">
@@ -93,12 +95,17 @@
         <h2>Credits</h2>
 
         <p>Butterfly of the Forgotten</p>
-        <p>A Psychological Horror Visual Novel</p>
+
+        <p>
+            A Psychological Horror Visual Novel
+        </p>
+
+        <br>
 
         <p>Story & Design</p>
         <p>Aeranyra</p>
 
-        <button onclick="closeCredits()">
+        <button id="closeCreditsBtn">
             Close
         </button>
 
@@ -116,10 +123,12 @@
 
     <h1 id="chapterTitle"></h1>
 
+    <p id="chapterSubtitle"></p>
+
 </div>
 
 <!-- =========================
-     VISUAL NOVEL SCREEN
+     MAIN GAME SCREEN
 ========================= -->
 
 <div id="gameScreen" class="hidden">
@@ -139,7 +148,7 @@
 </div>
 
 <!-- =========================
-     NAME INPUT SCREEN
+     NAME INPUT
 ========================= -->
 
 <div id="nameScreen" class="hidden">
@@ -154,6 +163,7 @@
             type="text"
             id="playerName"
             maxlength="20"
+            autocomplete="off"
             placeholder="Enter your name"
         >
 
@@ -166,7 +176,7 @@
 </div>
 
 <!-- =========================
-     LETTER SCREEN
+     HIDDEN LETTER
 ========================= -->
 
 <div id="letterScreen" class="hidden">
@@ -189,13 +199,17 @@
 
     <p id="endingMessage"></p>
 
-    <button id="showLetterBtn">
-        Open Hidden Letter
-    </button>
+    <div class="endingButtons">
 
-    <button id="restartBtn">
-        Restart
-    </button>
+        <button id="showLetterBtn">
+            Open Hidden Letter
+        </button>
+
+        <button id="restartBtn">
+            Restart
+        </button>
+
+    </div>
 
 </div>
 
@@ -223,18 +237,27 @@
 
         <br><br>
 
-        <h1>Butterfly of the Forgotten</h1>
+        <h1>
+            Butterfly of the Forgotten
+        </h1>
 
         <p>Story & Design</p>
-        <p>Aeranyra</p>
+
+        <p>
+            Aeranyra
+        </p>
 
         <br>
 
-        <p>Psychological Horror Visual Novel</p>
+        <p>
+            Psychological Horror Visual Novel
+        </p>
 
         <br>
 
-        <p>The academy remembers every name.</p>
+        <p>
+            The academy remembers every name.
+        </p>
 
         <br><br>
 
@@ -245,10 +268,21 @@
     </div>
 
 </div>
-<!-- AUDIO -->
-<audio id="music" loop></audio>
 
-<!-- SCRIPT -->
+<!-- =========================
+     AUDIO
+========================= -->
+
+<audio
+    id="music"
+    loop
+    preload="auto">
+</audio>
+
+<!-- =========================
+     SCRIPT
+========================= -->
+
 <script src="script.js"></script>
 
 </body>
