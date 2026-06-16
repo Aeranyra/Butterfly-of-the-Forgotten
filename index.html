@@ -1,27 +1,255 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Butterfly of the Forgotten</title>
+
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- 🦋 Butterfly Cursor Layer -->
-<div id="cursor"></div>
-<div id="trail"></div>
-
 <!-- BACKGROUND -->
 <div id="bg"></div>
 
-<!-- UI -->
-<div id="ui">
-  <div id="screen"></div>
+<!-- FADE -->
+<div id="fade"></div>
+
+<!-- BUTTERFLY CURSOR -->
+<div id="butterflyCursor"></div>
+<div id="trailContainer"></div>
+
+<!-- =========================
+     TITLE SCREEN
+========================= -->
+
+<div id="menuScreen">
+
+    <h1 id="gameTitle">
+        Butterfly of the Forgotten
+    </h1>
+
+    <p id="quote">
+        "The academy remembers every name."
+    </p>
+
+    <div id="menuButtons">
+
+        <button id="startBtn">
+            Start
+        </button>
+
+        <button id="howBtn">
+            How To Play
+        </button>
+
+        <button id="creditsBtn">
+            Credits
+        </button>
+
+    </div>
+
+    <p id="clickBegin">
+        Click anywhere to begin
+    </p>
+
+    <!-- Menu Butterflies -->
+    <div id="menuButterflies"></div>
+
 </div>
 
+<!-- =========================
+     HOW TO PLAY POPUP
+========================= -->
+
+<div id="howPopup" class="popup hidden">
+
+    <div class="popupContent">
+
+        <h2>How To Play</h2>
+
+        <p>Explore the academy.</p>
+        <p>Make choices carefully.</p>
+        <p>Protect your sanity.</p>
+        <p>Some truths are better left forgotten.</p>
+
+        <button onclick="closeHowToPlay()">
+            Close
+        </button>
+
+    </div>
+
+</div>
+
+<!-- =========================
+     CREDITS POPUP
+========================= -->
+
+<div id="creditsPopup" class="popup hidden">
+
+    <div class="popupContent">
+
+        <h2>Credits</h2>
+
+        <p>Butterfly of the Forgotten</p>
+        <p>A Psychological Horror Visual Novel</p>
+
+        <p>Story & Design</p>
+        <p>Aeranyra</p>
+
+        <button onclick="closeCredits()">
+            Close
+        </button>
+
+    </div>
+
+</div>
+
+<!-- =========================
+     CHAPTER CARD
+========================= -->
+
+<div id="chapterCard" class="hidden">
+
+    <h2 id="chapterNumber"></h2>
+
+    <h1 id="chapterTitle"></h1>
+
+</div>
+
+<!-- =========================
+     VISUAL NOVEL SCREEN
+========================= -->
+
+<div id="gameScreen" class="hidden">
+
+    <div id="textbox">
+
+        <div id="chapter"></div>
+
+        <div id="title"></div>
+
+        <div id="text"></div>
+
+        <div id="choices"></div>
+
+    </div>
+
+</div>
+
+<!-- =========================
+     NAME INPUT SCREEN
+========================= -->
+
+<div id="nameScreen" class="hidden">
+
+    <div class="nameBox">
+
+        <h2>
+            Tell us your name.
+        </h2>
+
+        <input
+            type="text"
+            id="playerName"
+            maxlength="20"
+            placeholder="Enter your name"
+        >
+
+        <button id="nameConfirm">
+            Continue
+        </button>
+
+    </div>
+
+</div>
+
+<!-- =========================
+     LETTER SCREEN
+========================= -->
+
+<div id="letterScreen" class="hidden">
+
+    <div id="letterPaper">
+
+        <div id="letterText"></div>
+
+    </div>
+
+</div>
+
+<!-- =========================
+     ENDING SCREEN
+========================= -->
+
+<div id="endingScreen" class="hidden">
+
+    <h1 id="endingTitle"></h1>
+
+    <p id="endingMessage"></p>
+
+    <button id="showLetterBtn">
+        Open Hidden Letter
+    </button>
+
+    <button id="restartBtn">
+        Restart
+    </button>
+
+</div>
+
+<!-- =========================
+     CREDIT SCENE
+========================= -->
+
+<div id="creditScene" class="hidden">
+
+    <div id="creditText">
+
+        <p>The butterfly remains.</p>
+
+        <p>The academy remembers every name.</p>
+
+        <p>Even the ones that were forgotten.</p>
+
+        <p>Thank you for playing.</p>
+
+        <p>
+            If you remember this place...
+            <br>
+            it may remember you too.
+        </p>
+
+        <br><br>
+
+        <h1>Butterfly of the Forgotten</h1>
+
+        <p>Story & Design</p>
+        <p>Aeranyra</p>
+
+        <br>
+
+        <p>Psychological Horror Visual Novel</p>
+
+        <br>
+
+        <p>The academy remembers every name.</p>
+
+        <br><br>
+
+        <button id="creditRestart">
+            Return to Title
+        </button>
+
+    </div>
+
+</div>
 <!-- AUDIO -->
 <audio id="music" loop></audio>
 
+<!-- SCRIPT -->
 <script src="script.js"></script>
+
 </body>
 </html>
