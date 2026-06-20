@@ -1,19 +1,12 @@
 /**
- * STATE LAYER — Firebase Edition
+ * STATE LAYER — Firebase Compat Edition
  * ------------------------------------------------------------
- * Syncs all game state to Firebase Realtime Database so all
- * 5 players share the same session in real-time.
- *
- * Session ID is stored in the URL: ?session=XXXX
- * If no session ID, a new one is created automatically.
+ * Uses Firebase compat SDK (no imports needed).
+ * Scripts loaded via CDN in index.html before this file.
  * ------------------------------------------------------------
  */
 
 // ---------- FIREBASE SETUP ----------
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, onValue, update }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
 const firebaseConfig = {
   apiKey: "AIzaSyDkSIwzVhFrXnLUCfDzIStMmTt04B97iac",
   authDomain: "butterfly-of-the-forgotten.firebaseapp.com",
@@ -25,15 +18,14 @@ const firebaseConfig = {
   measurementId: "G-9QYZSNLRJ0"
 };
 
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getDatabase(firebaseApp);
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
 // ---------- SESSION HELPERS ----------
 function getSessionId() {
   const params = new URLSearchParams(window.location.search);
   let sid = params.get('session');
   if (!sid) {
-    // Generate a short random room code like "A3F7"
     sid = Math.random().toString(36).substring(2, 6).toUpperCase();
     const url = new URL(window.location.href);
     url.searchParams.set('session', sid);
@@ -54,20 +46,17 @@ function getPlayerId() {
 const SESSION_ID = getSessionId();
 const PLAYER_ID  = getPlayerId();
 
-// Expose session info so other parts of the game can use it
 window.BUTTERFLY_SESSION = SESSION_ID;
 window.BUTTERFLY_PLAYER  = PLAYER_ID;
 
 console.log(`[Butterfly] Session: ${SESSION_ID} | Player: ${PLAYER_ID}`);
 
-// ---------- FIREBASE STATE LAYER ----------
+// ---------- STATE LAYER ----------
 const memory    = {};
 const listeners = {};
 
-// Sync a key FROM Firebase whenever it changes remotely
 function _watchKey(key) {
-  const r = ref(db, `sessions/${SESSION_ID}/state/${key}`);
-  onValue(r, snapshot => {
+  db.ref(`sessions/${SESSION_ID}/state/${key}`).on('value', snapshot => {
     const value = snapshot.val();
     if (value !== null) {
       memory[key] = value;
@@ -82,10 +71,8 @@ const GameState = (() => {
 
   function saveState(key, value) {
     memory[key] = value;
-    // Push to Firebase
-    const r = ref(db, `sessions/${SESSION_ID}/state/${key}`);
-    set(r, value).catch(e => console.warn('[Firebase] write error:', e));
-    // Notify local listeners
+    db.ref(`sessions/${SESSION_ID}/state/${key}`).set(value)
+      .catch(e => console.warn('[Firebase] write error:', e));
     if (listeners[key]) {
       listeners[key].forEach(cb => cb(value));
     }
@@ -99,7 +86,7 @@ const GameState = (() => {
   function onStateChange(key, callback) {
     if (!listeners[key]) {
       listeners[key] = [];
-      _watchKey(key);   // start listening to Firebase for this key
+      _watchKey(key);
     }
     listeners[key].push(callback);
   }
@@ -107,14 +94,13 @@ const GameState = (() => {
   return { saveState, loadState, onStateChange };
 })();
 
-// ---------- PLAYER HELPERS ----------
+// ---------- PLAYER ----------
 const Player = {
   init() {
-    const playerRef = ref(db, `sessions/${SESSION_ID}/players/${PLAYER_ID}`);
-    get(playerRef).then(snapshot => {
+    const playerRef = db.ref(`sessions/${SESSION_ID}/players/${PLAYER_ID}`);
+    playerRef.once('value').then(snapshot => {
       if (!snapshot.exists()) {
-        // First time this player joins
-        set(playerRef, {
+        playerRef.set({
           name: null,
           sanity: 75,
           role: null,
@@ -134,15 +120,14 @@ const Player = {
     const current = Player.get() || {};
     const updated = { ...current, ...partial };
     GameState.saveState('player', updated);
-    // Also update this player's own record
-    const playerRef = ref(db, `sessions/${SESSION_ID}/players/${PLAYER_ID}`);
-    update(playerRef, partial).catch(e => console.warn('[Firebase] player update error:', e));
+    db.ref(`sessions/${SESSION_ID}/players/${PLAYER_ID}`)
+      .update(partial)
+      .catch(e => console.warn('[Firebase] player update error:', e));
     return updated;
   },
 
-  setName(name) {
-    return Player.update({ name });
-  },
+  setName(name)   { return Player.update({ name }); },
+  setScene(sceneId) { return Player.update({ currentScene: sceneId }); },
 
   addPersonalityAnswer(promptId, answer) {
     const current = Player.get();
@@ -150,16 +135,9 @@ const Player = {
     return Player.update({ personalityAnswers: answers });
   },
 
-  setScene(sceneId) {
-    return Player.update({ currentScene: sceneId });
-  },
-
-  // Watch all players in this session (for multiplayer UI)
   watchAllPlayers(callback) {
-    const allRef = ref(db, `sessions/${SESSION_ID}/players`);
-    onValue(allRef, snapshot => {
-      const players = snapshot.val() || {};
-      callback(players);
+    db.ref(`sessions/${SESSION_ID}/players`).on('value', snapshot => {
+      callback(snapshot.val() || {});
     });
   },
 
