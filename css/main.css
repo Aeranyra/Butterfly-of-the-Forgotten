@@ -512,7 +512,74 @@ body {
   }
 }
 
-/* ---------- REDUCED MOTION ---------- */
+/* ---------- HIDDEN LETTER (ending "system leak" content) ---------- */
+
+.leaked-letter {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  line-height: 1.9;
+  color: var(--accent-warning-bright, #b04444);
+  opacity: 0.85;
+  white-space: pre-line;
+  max-width: 480px;
+}
+
+.leaked-letter-label {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.8rem;
+  opacity: 0.6;
+}
+
+.modal-box-letter {
+  max-width: 480px;
+}
+
+/* ---------- CREDIT TITLE BLOCK ---------- */
+
+.credit-title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  opacity: 0;
+  animation: beatIn 1.6s var(--ease-slow) forwards;
+}
+
+.credit-title-name {
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  margin-bottom: 0.4rem;
+}
+
+.credit-role-line {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+.credit-author {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.05rem;
+  color: var(--text-pale);
+  letter-spacing: 0.03em;
+}
+
+/* ---------- SECRET BUTTERFLY EPILOGUE ---------- */
+
+.credit-secret-epilogue {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.4rem;
+  opacity: 0;
+  animation: beatIn 1.4s var(--ease-slow) forwards;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .narrative-text .beat,
@@ -522,7 +589,9 @@ body {
   .glitch-active,
   .npc-line,
   .trust-indicator,
-  .cursor-trail-dot {
+  .cursor-trail-dot,
+  .credit-title-block,
+  .credit-secret-epilogue {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
