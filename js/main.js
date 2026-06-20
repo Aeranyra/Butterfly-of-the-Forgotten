@@ -186,20 +186,6 @@
     let awaitingClick = false;
     let extraDelay = 0; // set by the false-interaction moment
 
-    function flickerIn(el, text) {
-      let pulses = 0;
-      el.style.opacity = '0';
-      el.textContent = text;
-      const interval = setInterval(() => {
-        el.style.opacity = el.style.opacity === '0' ? '1' : '0';
-        pulses++;
-        if (pulses >= 5) {
-          clearInterval(interval);
-          el.style.opacity = '1';
-        }
-      }, 90);
-    }
-
     function showBeat() {
       if (index >= PROLOGUE_BEATS.length) {
         continueBtn.style.display = 'inline-block';
@@ -217,7 +203,7 @@
           span.style.opacity = '1';
           textEl.innerHTML = '';
           textEl.appendChild(span);
-          flickerIn(span, beat);
+          GlitchDialogue.render(span, beat, Player.get().sanity);
         } else {
           textEl.innerHTML = `<span class="beat">${beat}</span>`;
         }
