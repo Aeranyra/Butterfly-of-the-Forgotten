@@ -1,1 +1,487 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap');
 
+:root {
+  --bg-void: #0a0a0d;
+  --bg-panel: #121116;
+  --text-pale: #e8e6e0;
+  --text-dim: #8a8790;
+  --accent-violet: #6b5b7a;
+  --accent-violet-bright: #9b85b0;
+  --accent-warning: #7a2e2e;
+  --accent-warning-bright: #b04444;
+
+  --font-display: 'Cormorant Garamond', serif;
+  --font-ui: 'Jost', sans-serif;
+
+  --ease-slow: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg-void);
+  color: var(--text-pale);
+  font-family: var(--font-ui);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+}
+
+/* ---------- SCENE FRAMEWORK ---------- */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.1s var(--ease-slow);
+}
+
+.scene.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.scene-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+
+.scene-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(10,10,13,0.35) 0%, rgba(10,10,13,0.88) 75%, rgba(10,10,13,0.97) 100%);
+}
+
+.scene-content {
+  position: relative;
+  z-index: 1;
+  max-width: 640px;
+  width: 90%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+/* ---------- TYPOGRAPHY ---------- */
+
+.title-mark {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 6vw, 4.2rem);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-pale);
+  line-height: 1.1;
+}
+
+.quote-line {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(1.1rem, 2.4vw, 1.5rem);
+  color: var(--text-dim);
+  line-height: 1.6;
+  max-width: 32ch;
+}
+
+.narrative-text {
+  font-family: var(--font-display);
+  font-size: clamp(1.3rem, 3vw, 1.7rem);
+  line-height: 1.7;
+  color: var(--text-pale);
+  min-height: 3em;
+}
+
+.narrative-text .beat {
+  display: block;
+  opacity: 0;
+  transform: translateY(6px);
+  animation: beatIn 1.2s var(--ease-slow) forwards;
+}
+
+@keyframes beatIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hint-text {
+  font-family: var(--font-ui);
+  font-weight: 300;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+
+/* ---------- MENU OPTIONS ---------- */
+
+.menu-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  margin-top: 1rem;
+}
+
+.menu-option {
+  background: none;
+  border: none;
+  font-family: var(--font-ui);
+  font-weight: 400;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  color: var(--text-pale);
+  cursor: pointer;
+  position: relative;
+  padding: 0.3rem 0;
+  text-decoration: none;
+}
+
+.menu-option::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  width: 0;
+  height: 1px;
+  background: var(--accent-violet-bright);
+  transition: width 0.4s var(--ease-slow), left 0.4s var(--ease-slow);
+}
+
+.menu-option:hover::after,
+.menu-option:focus-visible::after {
+  width: 100%;
+  left: 0;
+}
+
+.menu-option:focus-visible {
+  outline: 1px solid var(--accent-violet-bright);
+  outline-offset: 4px;
+}
+
+/* ---------- CHOICE LIST (personality prompts, story choices) ---------- */
+
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.choice-btn {
+  background: rgba(232, 230, 224, 0.03);
+  border: 1px solid rgba(232, 230, 224, 0.14);
+  color: var(--text-pale);
+  font-family: var(--font-ui);
+  font-weight: 300;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  padding: 0.85rem 1.4rem;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.3s var(--ease-slow), background 0.3s var(--ease-slow), padding-left 0.3s var(--ease-slow);
+}
+
+.choice-btn:hover,
+.choice-btn:focus-visible {
+  border-color: var(--accent-violet-bright);
+  background: rgba(155, 133, 176, 0.08);
+  padding-left: 1.8rem;
+}
+
+.choice-btn:focus-visible {
+  outline: none;
+}
+
+/* ---------- NAME INPUT ---------- */
+
+.name-input-field {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(232, 230, 224, 0.3);
+  color: var(--text-pale);
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  text-align: center;
+  padding: 0.5rem 1rem;
+  width: 100%;
+  max-width: 320px;
+  outline: none;
+  transition: border-color 0.3s var(--ease-slow);
+}
+
+.name-input-field:focus {
+  border-color: var(--accent-violet-bright);
+}
+
+.name-input-field::placeholder {
+  color: var(--text-dim);
+  opacity: 0.5;
+  font-style: italic;
+}
+
+/* ---------- BUTTERFLY ---------- */
+
+.butterfly {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2;
+  animation: butterflyDrift linear forwards;
+}
+
+@keyframes butterflyDrift {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0deg); }
+  8% { opacity: 0.85; }
+  92% { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(var(--drift-x), var(--drift-y)) rotate(var(--drift-rot)); }
+}
+
+.butterfly svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 4px rgba(107, 91, 122, 0.6));
+}
+
+.wing {
+  animation: wingFlap 0.32s ease-in-out infinite alternate;
+  transform-origin: center;
+}
+
+@keyframes wingFlap {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0.55); }
+}
+
+/* ---------- CLICK TO BEGIN ---------- */
+
+.click-to-begin {
+  position: absolute;
+  bottom: 6%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  animation: pulseFade 2.6s ease-in-out infinite;
+  z-index: 1;
+}
+
+@keyframes pulseFade {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
+}
+
+/* ---------- HOW TO PLAY MODAL ---------- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 13, 0.85);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s var(--ease-slow);
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-box {
+  background: var(--bg-panel);
+  border: 1px solid rgba(232, 230, 224, 0.12);
+  padding: 2.4rem 2.2rem;
+  max-width: 420px;
+  width: 88%;
+  text-align: center;
+}
+
+.modal-box .quote-line {
+  margin-bottom: 0.6rem;
+}
+
+.modal-close {
+  margin-top: 1.6rem;
+  background: none;
+  border: 1px solid rgba(232, 230, 224, 0.2);
+  color: var(--text-pale);
+  font-family: var(--font-ui);
+  padding: 0.6rem 1.6rem;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  font-size: 0.85rem;
+  transition: border-color 0.3s var(--ease-slow);
+}
+
+.modal-close:hover {
+  border-color: var(--accent-violet-bright);
+}
+
+/* ---------- GLITCH EFFECT (Glitch Dialogue System) ---------- */
+
+.glitch-active {
+  position: relative;
+  animation: glitchShudder 0.18s steps(2, end) infinite;
+}
+
+@keyframes glitchShudder {
+  0% { transform: translate(0); }
+  50% { transform: translate(-1px, 0.5px); }
+  100% { transform: translate(1px, -0.5px); }
+}
+
+.glitch-active.intensity-lost {
+  animation-duration: 0.09s;
+  text-shadow: 1px 0 var(--accent-warning-bright), -1px 0 var(--accent-violet-bright);
+}
+
+/* ---------- PERSONALITY PROMPT NUMBER ---------- */
+
+.prompt-meta {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent-violet-bright);
+  opacity: 0.7;
+}
+
+/* ---------- ROOM LAYOUT (Classroom, Hallway, Library, Clock Tower) ---------- */
+
+.room-scene .scene-content {
+  max-width: 680px;
+  gap: 1.4rem;
+}
+
+/* Trust indicator — quiet, persistent, top-right. Reads as "the room's mood",
+   not a HUD stat. Color/opacity shift with trust level via inline style. */
+.trust-indicator {
+  position: absolute;
+  top: 5%;
+  right: 6%;
+  z-index: 3;
+  width: 34px;
+  height: 2px;
+  background: var(--accent-violet-bright);
+  opacity: 0.5;
+  transition: opacity 1.2s var(--ease-slow), background-color 1.2s var(--ease-slow), width 1.2s var(--ease-slow);
+}
+
+.trust-indicator::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 0;
+  font-size: 0.6rem;
+}
+
+/* NPC presence zone — reserved lower-third area so NPC text/visuals never
+   collide with main narrative text above. */
+.npc-zone {
+  position: relative;
+  z-index: 1;
+  min-height: 2.4em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.npc-line {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(1rem, 2.2vw, 1.25rem);
+  color: var(--text-dim);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 1s var(--ease-slow), transform 1s var(--ease-slow);
+}
+
+.npc-line.visible {
+  opacity: 0.85;
+  transform: translateY(0);
+}
+
+.npc-line.background-student {
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  opacity: 0.4;
+}
+
+/* Room event meta label (e.g. "ROLL CALL", "SEATING") — same visual language
+   as prompt-meta from Personality Test, reused for consistency. */
+.room-event-meta {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent-violet-bright);
+  opacity: 0.6;
+}
+
+/* ---------- RESPONSIVE ---------- */
+
+@media (max-width: 480px) {
+  .scene-content {
+    width: 92%;
+    gap: 1.5rem;
+  }
+  .choice-btn {
+    padding: 0.7rem 1.1rem;
+  }
+}
+
+/* ---------- REDUCED MOTION ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .narrative-text .beat,
+  .click-to-begin,
+  .butterfly,
+  .wing,
+  .glitch-active,
+  .npc-line,
+  .trust-indicator {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .scene {
+    transition: opacity 0.3s linear;
+  }
+}
