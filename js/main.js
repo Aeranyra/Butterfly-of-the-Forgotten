@@ -212,9 +212,18 @@
         index++;
         awaitingClick = true;
 
-        // False interaction: a real butterfly drifts across, clickable but inert
+        // False interaction: a real butterfly drifts across, clickable but inert.
+        // This is the one the line is actually describing — it needs to be
+        // unmistakable, not just another ambient particle.
         if (beat === PROLOGUE_BUTTERFLY_TRIGGER) {
-          Butterfly.spawn(sceneEl, { count: 1, duration: [3000, 4000] });
+          Butterfly.spawn(sceneEl, {
+            count: 1,
+            variant: 'black',
+            size: 46,
+            duration: [4500, 6000],
+            startY: [30, 50],
+            driftRange: 220
+          });
           extraDelay = 600; // next beat lands slightly later than expected, regardless of click
         }
       };
@@ -403,6 +412,7 @@
 
       // ---- EVENT 1: ROLL CALL ----
       NPC.showBackgroundStudents(4);
+      Butterfly.spawn(sceneEl, { count: 1, variant: 'black', duration: [5000, 7000] });
       await showLine('Five chairs. Five names. None of them feel new.', { meta: 'Roll Call' });
       NPC.clearZone();
 
@@ -433,7 +443,7 @@
       sceneEl.style.transition = 'opacity 1.2s ease';
       sceneEl.style.opacity = '0';
       await wait(1300);
-      sceneEl.style.opacity = '1';
+      sceneEl.style.opacity = '';
       sceneEl.style.transition = '';
 
       goToScene('scene-hallway');
@@ -584,6 +594,7 @@
       // ---- SEPARATION EVENT (key hallway mechanic) ----
       await wait(400);
       await showLine('For a moment, this doesn\'t look like the same hallway anymore.', { meta: 'Separation' });
+      Butterfly.spawn(sceneEl, { count: 1, variant: 'red', duration: [4500, 6000] });
       await showLine('But you\'re still in the same space. You\'re sure of that. Mostly.', { meta: 'Separation' });
 
       // ---- EXIT ----
@@ -593,7 +604,7 @@
       sceneEl.style.transition = 'opacity 1.2s ease';
       sceneEl.style.opacity = '0';
       await wait(1300);
-      sceneEl.style.opacity = '1';
+      sceneEl.style.opacity = '';
       sceneEl.style.transition = '';
 
       goToScene('scene-library');
@@ -709,6 +720,8 @@
       const role = (Player.get().role) || 'wanderer';
       await showLine(FRAGMENT_REACTIONS[role] || FRAGMENT_REACTIONS.wanderer, { meta: 'Fragment' });
 
+      Butterfly.spawn(sceneEl, { count: 1, variant: 'black', duration: [6000, 8000] });
+
       // ---- ROLE-SPLIT INFORMATION EVENT ----
       // Solo-test note: full design has players compare what they each read
       // and find contradictions. True cross-player comparison needs the
@@ -735,7 +748,7 @@
       sceneEl.style.transition = 'opacity 1.2s ease';
       sceneEl.style.opacity = '0';
       await wait(1300);
-      sceneEl.style.opacity = '1';
+      sceneEl.style.opacity = '';
       sceneEl.style.transition = '';
 
       goToScene('scene-clocktower');
@@ -881,6 +894,7 @@
       sceneEl.style.filter = 'none';
       sceneEl.style.transition = '';
       await showLine('Time did not pass correctly.', { meta: 'Time Skip', glitch: true });
+      Butterfly.spawn(sceneEl, { count: 1, variant: 'red', duration: [4000, 5500] });
 
       const role = (Player.get().role) || 'wanderer';
       await showLine(TIME_SKIP_REACTIONS[role] || TIME_SKIP_REACTIONS.wanderer, { meta: 'Time Skip' });
@@ -911,7 +925,7 @@
       sceneEl.style.transition = 'opacity 1.4s ease';
       sceneEl.style.opacity = '0';
       await wait(1500);
-      sceneEl.style.opacity = '1';
+      sceneEl.style.opacity = '';
       sceneEl.style.transition = '';
 
       goToScene('scene-finalgate');
@@ -1075,7 +1089,7 @@
       sceneEl.style.transition = 'opacity 1.6s ease';
       sceneEl.style.opacity = '0';
       await wait(1700);
-      sceneEl.style.opacity = '1';
+      sceneEl.style.opacity = '';
       sceneEl.style.transition = '';
 
       runEnding(endingKey);
@@ -1291,6 +1305,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     initTitleScreen();
     initNameInput();
+    if (window.CursorTrail) CursorTrail.init();
   });
 
 })();
