@@ -89,7 +89,6 @@
       <p class="quote-line">Enter the code shared with you.</p>
       <input type="text" class="lobby-code-input" id="lobby-code-field" placeholder="CODE" maxlength="5">
       <button class="menu-option" id="btn-lobby-join-confirm">Enter</button>
-      <p class="lobby-error" id="lobby-error"></p>
     </div>
 
     <div class="scene-content" id="lobby-waiting-content" style="display:none;">
@@ -97,6 +96,8 @@
       <div class="lobby-code-display" id="lobby-code-display"></div>
       <p class="lobby-count" id="lobby-count">1 / 5 have arrived</p>
     </div>
+
+    <p class="lobby-error" id="lobby-error" style="position:absolute; bottom:8%; left:0; right:0; text-align:center; z-index:2;"></p>
   </section>
 
   <!-- ============ CLASSROOM ============ -->
