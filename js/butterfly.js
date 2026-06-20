@@ -21,7 +21,7 @@ const Butterfly = (() => {
       wingTop: '#2a2435', wingTopOp: 1,
       wingBottom: '#16121c', wingBottomOp: 1,
       body: '#000000',
-      glow: 'rgba(214, 90, 90, 0.85)'
+      glow: 'rgba(150, 130, 190, 0.8)'
     },
     red: {
       wingTop: '#9b3a3a', wingTopOp: 0.9,

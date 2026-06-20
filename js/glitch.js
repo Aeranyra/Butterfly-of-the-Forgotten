@@ -18,7 +18,7 @@ const GlitchDialogue = (() => {
     const swapCount = Math.max(1, Math.floor(chars.length * intensity * 0.18));
     for (let i = 0; i < swapCount; i++) {
       const idx = Math.floor(Math.random() * chars.length);
-      if (chars[idx] !== ' ') {
+      if (chars[idx] !== ' ' && chars[idx] !== '\n') {
         chars[idx] = FAKE_CHARS[Math.floor(Math.random() * FAKE_CHARS.length)];
       }
     }

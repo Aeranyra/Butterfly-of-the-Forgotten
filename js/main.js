@@ -218,6 +218,20 @@
           textEl.innerHTML = '';
           textEl.appendChild(span);
           flickerIn(span, beat);
+
+          // A small swarm rather than a single butterfly, so it's
+          // unmistakable no matter how long the player took to get here.
+          // Stays dark/violet (not red) — this line is "received", not
+          // a threat cue.
+          AudioManager.playStatic(0.35);
+          Butterfly.spawn(sceneEl, {
+            count: 4,
+            variant: 'black',
+            size: 60,
+            duration: [6000, 9000],
+            startY: [20, 60],
+            driftRange: 320
+          });
         } else {
           textEl.innerHTML = `<span class="beat">${beat}</span>`;
         }
@@ -228,13 +242,14 @@
         // This is the one the line is actually describing — it needs to be
         // unmistakable, not just another ambient particle.
         if (beat === PROLOGUE_BUTTERFLY_TRIGGER) {
+          AudioManager.playStatic(0.3);
           Butterfly.spawn(sceneEl, {
-            count: 1,
+            count: 3,
             variant: 'black',
-            size: 90,
+            size: 80,
             duration: [4500, 6000],
             startY: [30, 50],
-            driftRange: 220
+            driftRange: 260
           });
           extraDelay = 600; // next beat lands slightly later than expected, regardless of click
         }
@@ -1093,7 +1108,7 @@
       // ---- ENDING CALCULATION ENGINE ----
       const endingKey = calculateEnding({ tier, trust, role, observerChoice, butterflyConditionMet, groupTrustCollapse });
 
-      Player.update({ finalEndingKey: endingKey, finalRoleRevealed: role });
+      Player.update({ finalEndingKey: endingKey, finalRoleRevealed: role, observerChoice });
 
       await showLine('The academy has decided what it remembers.', { meta: 'Final Gate', holdForClick: false });
       await wait(2200);
@@ -1170,57 +1185,85 @@
       bg: 'https://files.catbox.moe/atorqo.jpg',
       track: 'trueEnding',
       title: 'True Escape',
-      text: 'The doors open. Not all of you remember why you came. It doesn\'t matter now. You leave anyway.',
-      closingLine: 'The academy remembers you as one who left.'
+      text: 'You exited correctly.\n\nThat is why the system marked you as missing.\n\nEscape is only valid when the academy agrees you were real.',
+      closingLine: 'The academy remembers you as one who left.',
+      hiddenLetter: 'We tested multiple versions of your exit.\nOnly one version believes it succeeded.\nWe are not sure which one you are.'
     },
     betrayalEnding: {
       bg: 'https://files.catbox.moe/fluqye.jpg',
       track: 'betrayalEnding',
       title: 'Betrayal',
-      text: 'Trust did not hold. The academy resets, patient as ever, already preparing five new chairs.',
-      closingLine: 'The academy remembers you as one who stayed quiet.'
+      text: 'There was no betrayal event.\n\nOnly disagreement in perception timing.\n\nThe group ended at different moments.',
+      closingLine: 'The academy remembers you as one who stayed quiet.',
+      hiddenLetter: 'We did not assign a traitor.\nWe assigned probability of trust collapse.\nYou all fulfilled it differently.'
     },
     forgottenEnding: {
       bg: 'https://files.catbox.moe/1keikq.jpg',
       track: 'forgottenEnding',
       title: 'Forgotten',
-      text: 'You stop trying to remember your name. It stops mattering. The halls feel a little more like home than they should.',
-      closingLine: 'The academy remembers you. You no longer remember it.'
+      text: 'You were not erased.\n\nYou were simply no longer referenced.\n\nThe academy stopped pointing at you.',
+      closingLine: 'The academy remembers you. You no longer remember it.',
+      hiddenLetter: 'A student remained after classification ended.\nWe continued without updating your status.\nYou still exist in unlabelled storage.'
     },
     observerEnding: {
       bg: 'https://files.catbox.moe/bcavv5.jpg',
       track: 'observerEnding',
       title: 'Observer',
-      text: 'What you chose to see becomes what was true. The others never know how much of this was your decision.',
-      closingLine: 'The academy remembers what you chose to see.'
+      text: 'You left with full awareness.\n\nThat is considered system corruption.\n\nAwareness is not permitted outside the academy.',
+      closingLine: 'The academy remembers what you chose to see.',
+      hiddenLetter: 'Observers are not released.\nThey are relocated between interpretations.\nYou will be watching again soon.',
+      variants: {
+        escape: {
+          text: 'You left with full awareness.\n\nThat is considered system corruption.\n\nAwareness is not permitted outside the academy.',
+          hiddenLetter: 'Observers are not released.\nThey are relocated between interpretations.\nYou will be watching again soon.'
+        },
+        stay: {
+          text: 'You stopped needing confirmation.\n\nThe academy accepted this as permanence.\n\nYou are now part of its verification layer.',
+          hiddenLetter: 'You are the reason events feel repeated.\nYou are used to check if memory still fails.'
+        },
+        sacrifice: {
+          text: 'Your decision was recorded after it already happened.\n\nThe others left before you chose.\n\nSequence integrity restored.',
+          hiddenLetter: 'We thank you for resolving timeline inconsistency.\nYour presence was the error we needed.'
+        }
+      }
     },
     secretButterfly: {
       bg: 'https://files.catbox.moe/4egrjl.jpg',
       track: 'hiddenEnding',
       title: 'The Butterfly',
-      text: 'Every truth is accounted for. Every name is in its place. A single butterfly settles, finally, somewhere still.',
-      closingLine: 'The academy has finished remembering you.'
+      text: 'There is no hidden ending.\n\nThis is the version that already included it.\n\nYou are reading a corrected memory.',
+      closingLine: 'The academy has finished remembering you.',
+      hiddenLetter: 'We stopped separating player from outcome.\nEverything you did was already stored as past behavior.\nThe academy is not remembering you.\nIt is replaying you.'
     }
   };
 
+  function _resolveEndingContent(endingKey) {
+    const base = ENDING_CONTENT[endingKey] || ENDING_CONTENT.forgottenEnding;
+    const variantKey = Player.get().observerChoice;
+    if (base.variants && variantKey && base.variants[variantKey]) {
+      return { ...base, ...base.variants[variantKey] };
+    }
+    return base;
+  }
+
   function runEnding(endingKey) {
-    const content = ENDING_CONTENT[endingKey] || ENDING_CONTENT.forgottenEnding;
+    const content = _resolveEndingContent(endingKey);
     goToScene('scene-ending');
     AudioManager.play(content.track, { loop: false, volume: 0.5 });
 
     document.getElementById('ending-bg').style.backgroundImage = `url('${content.bg}')`;
     document.getElementById('ending-title').textContent = content.title;
-    document.getElementById('ending-text').textContent = '';
+    document.getElementById('ending-text').innerHTML = '';
 
     const textEl = document.getElementById('ending-text');
     setTimeout(() => {
       textEl.style.transition = 'opacity 1.5s ease';
       textEl.style.opacity = '0';
-      textEl.textContent = content.text;
+      textEl.innerHTML = content.text.split('\n\n').map(p => `<span class="beat">${p}</span>`).join('');
       requestAnimationFrame(() => { textEl.style.opacity = '1'; });
     }, 600);
 
-    setTimeout(() => runCreditScene(endingKey, content), 5500);
+    setTimeout(() => runCreditScene(endingKey, content), 6500);
   }
 
   // ====================================================================
@@ -1234,52 +1277,122 @@
     const creditScene = document.getElementById('scene-credits-final');
     const closingLineEl = document.getElementById('credit-closing-line');
     const roleRevealEl = document.getElementById('credit-role-reveal');
+    const letterEl = document.getElementById('credit-hidden-letter');
+    const titleBlockEl = document.getElementById('credit-title-block');
     const returnOptions = document.getElementById('credit-return-options');
+    const secretEpilogueEl = document.getElementById('credit-secret-epilogue');
+    const secretTextEl = document.getElementById('secret-epilogue-text');
 
     closingLineEl.textContent = '';
     roleRevealEl.style.display = 'none';
+    roleRevealEl.textContent = '';
+    letterEl.style.display = 'none';
+    letterEl.textContent = '';
+    titleBlockEl.style.display = 'none';
+    titleBlockEl.style.animation = 'none';
     returnOptions.style.display = 'none';
+    secretEpilogueEl.style.display = 'none';
+    secretEpilogueEl.style.animation = 'none';
 
-    // Beat 1: silence (2-3s, handled by the delay before this function runs
-    // plus this initial pause) — fade audio out
-    AudioManager.stop();
+    function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-    setTimeout(() => {
-      // Beat 2: the academy speaks last
-      closingLineEl.style.transition = 'opacity 1.5s ease';
-      closingLineEl.style.opacity = '0';
-      closingLineEl.textContent = content.closingLine;
-      requestAnimationFrame(() => { closingLineEl.style.opacity = '1'; });
-    }, 2200);
+    function fadeShow(el, text, { display = 'block', ms = 1500, html = false } = {}) {
+      el.style.display = display;
+      el.style.transition = `opacity ${ms / 1000}s ease`;
+      el.style.opacity = '0';
+      if (html) el.innerHTML = text; else el.textContent = text;
+      requestAnimationFrame(() => { el.style.opacity = '1'; });
+    }
 
-    setTimeout(() => {
+    async function sequence() {
+      // Beat 1: silence
+      AudioManager.stop();
+      await wait(2200);
+
+      // Beat 2: the academy speaks last (ending-specific closing line)
+      fadeShow(closingLineEl, content.closingLine);
+      await wait(3000);
+
       // Beat 3: private role reveal — own role only, per locked rule
       const role = Player.get().role || 'wanderer';
       const realLabel = ROLE_REAL_LABELS[role];
-      roleRevealEl.style.display = 'block';
-      roleRevealEl.style.transition = 'opacity 1.2s ease';
-      roleRevealEl.style.opacity = '0';
-      roleRevealEl.textContent = `You were the ${realLabel}.`;
-      requestAnimationFrame(() => { roleRevealEl.style.opacity = '1'; });
-    }, 5200);
+      fadeShow(roleRevealEl, `You were the ${realLabel}.`, { ms: 1200 });
+      await wait(2000);
 
-    setTimeout(() => {
-      // Beat 4: one last butterfly, alone on a still screen
+      // Beat 4: the hidden letter — a system "leak", rendered like a
+      // glitching fragment that shouldn't be visible to the player.
+      letterEl.style.display = 'block';
+      letterEl.style.opacity = '1';
+      AudioManager.playStatic(0.5);
+      GlitchDialogue.render(letterEl, content.hiddenLetter, 15); // forced 'lost' tier for max distortion
+      await wait(3600);
+
+      // Beat 5: one last butterfly, alone on a still screen
       Butterfly.spawn(creditScene, { count: 1, duration: [5000, 6000] });
-    }, 7200);
+      await wait(2000);
 
-    setTimeout(() => {
-      // Beat 5: return options
+      // Beat 6: quiet outro lines
+      const outroLines = [
+        'The butterfly remains.',
+        'The academy remembers every name.',
+        'Even the ones that were never spoken.',
+        'Even the ones that were forgotten.',
+        'Thank you for playing.',
+        'If you remember this place… it may remember you too.'
+      ];
+      for (const line of outroLines) {
+        fadeShow(closingLineEl, line, { ms: 1200 });
+        await wait(2400);
+      }
+
+      // Beat 7: title block
+      closingLineEl.style.transition = 'opacity 0.8s ease';
+      closingLineEl.style.opacity = '0';
+      await wait(800);
+      titleBlockEl.style.display = 'flex';
+      titleBlockEl.style.animation = 'beatIn 1.6s var(--ease-slow) forwards';
+      await wait(2000);
+
+      // Beat 8: return options
       returnOptions.style.display = 'flex';
       returnOptions.style.opacity = '0';
       returnOptions.style.transition = 'opacity 1.5s ease';
       requestAnimationFrame(() => { returnOptions.style.opacity = '1'; });
-    }, 10500);
 
+      // Secret Butterfly Ending only: the academy notices you've been
+      // here before, and asks if you want it to notice on purpose.
+      if (endingKey === 'secretButterfly') {
+        await wait(4000);
+        secretTextEl.textContent = '"This credit sequence has been viewed before."';
+        secretEpilogueEl.style.display = 'flex';
+        secretEpilogueEl.style.animation = 'beatIn 1.4s var(--ease-slow) forwards';
+        await wait(1800);
+        secretTextEl.textContent = '"This credit sequence has been viewed before." "Continue?"';
+      }
+    }
+
+    sequence();
+
+    document.getElementById('btn-read-letter').onclick = () => {
+      document.getElementById('hidden-letter-modal-text').textContent = content.hiddenLetter;
+      document.getElementById('modal-hidden-letter').classList.add('active');
+    };
+    document.getElementById('close-hidden-letter').onclick = () => {
+      document.getElementById('modal-hidden-letter').classList.remove('active');
+    };
     document.getElementById('btn-play-again').onclick = () => {
       window.location.reload();
     };
     document.getElementById('btn-return-title').onclick = () => {
+      window.location.reload();
+    };
+    document.getElementById('btn-secret-return').onclick = () => {
+      window.location.reload();
+    };
+    document.getElementById('btn-secret-remember').onclick = async () => {
+      secretEpilogueEl.querySelector('.menu-options').style.display = 'none';
+      secretTextEl.textContent = '"Player record updated."';
+      await wait(1800);
       window.location.reload();
     };
   }
