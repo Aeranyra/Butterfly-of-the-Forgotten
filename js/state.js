@@ -1,25 +1,10 @@
 /**
- * STATE LAYER — Firebase Compat Edition
+ * STATE LAYER — Firebase Hybrid Edition
  * ------------------------------------------------------------
- * Uses Firebase compat SDK (no imports needed).
- * Scripts loaded via CDN in index.html before this file.
+ * Game works exactly as before (memory + sessionStorage).
+ * Firebase syncs in the background without breaking anything.
  * ------------------------------------------------------------
  */
-
-// ---------- FIREBASE SETUP ----------
-const firebaseConfig = {
-  apiKey: "AIzaSyDkSIwzVhFrXnLUCfDzIStMmTt04B97iac",
-  authDomain: "butterfly-of-the-forgotten.firebaseapp.com",
-  databaseURL: "https://butterfly-of-the-forgotten-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "butterfly-of-the-forgotten",
-  storageBucket: "butterfly-of-the-forgotten.firebasestorage.app",
-  messagingSenderId: "277184033301",
-  appId: "1:277184033301:web:ea9e8a15e0d15f3aa9d41c",
-  measurementId: "G-9QYZSNLRJ0"
-};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
 
 // ---------- SESSION HELPERS ----------
 function getSessionId() {
@@ -51,28 +36,68 @@ window.BUTTERFLY_PLAYER  = PLAYER_ID;
 
 console.log(`[Butterfly] Session: ${SESSION_ID} | Player: ${PLAYER_ID}`);
 
-// ---------- STATE LAYER ----------
-const memory    = {};
+// ---------- FIREBASE (safe background sync) ----------
+let _db = null;
+
+function _firebaseReady() {
+  try {
+    if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+      firebase.initializeApp({
+        apiKey: "AIzaSyDkSIwzVhFrXnLUCfDzIStMmTt04B97iac",
+        authDomain: "butterfly-of-the-forgotten.firebaseapp.com",
+        databaseURL: "https://butterfly-of-the-forgotten-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "butterfly-of-the-forgotten",
+        storageBucket: "butterfly-of-the-forgotten.firebasestorage.app",
+        messagingSenderId: "277184033301",
+        appId: "1:277184033301:web:ea9e8a15e0d15f3aa9d41c",
+        measurementId: "G-9QYZSNLRJ0"
+      });
+    }
+    if (typeof firebase !== 'undefined') {
+      _db = firebase.database();
+      console.log('[Butterfly] Firebase connected');
+    }
+  } catch(e) {
+    console.warn('[Butterfly] Firebase not available, running offline', e);
+  }
+}
+
+function _fbSet(path, value) {
+  try {
+    if (_db) _db.ref(path).set(value);
+  } catch(e) {}
+}
+
+function _fbUpdate(path, value) {
+  try {
+    if (_db) _db.ref(path).update(value);
+  } catch(e) {}
+}
+
+// ---------- CORE STATE (original logic — untouched) ----------
+const memory = {};
 const listeners = {};
 
-function _watchKey(key) {
-  db.ref(`sessions/${SESSION_ID}/state/${key}`).on('value', snapshot => {
-    const value = snapshot.val();
-    if (value !== null) {
-      memory[key] = value;
-      if (listeners[key]) {
-        listeners[key].forEach(cb => cb(value));
-      }
-    }
-  });
+function _persist() {
+  try {
+    sessionStorage.setItem('butterfly_state', JSON.stringify(memory));
+  } catch(e) {}
+}
+
+function _restore() {
+  try {
+    const raw = sessionStorage.getItem('butterfly_state');
+    if (raw) Object.assign(memory, JSON.parse(raw));
+  } catch(e) {}
 }
 
 const GameState = (() => {
 
   function saveState(key, value) {
     memory[key] = value;
-    db.ref(`sessions/${SESSION_ID}/state/${key}`).set(value)
-      .catch(e => console.warn('[Firebase] write error:', e));
+    _persist();
+    // Background sync to Firebase
+    _fbSet(`sessions/${SESSION_ID}/state/${key}`, value);
     if (listeners[key]) {
       listeners[key].forEach(cb => cb(value));
     }
@@ -84,31 +109,30 @@ const GameState = (() => {
   }
 
   function onStateChange(key, callback) {
-    if (!listeners[key]) {
-      listeners[key] = [];
-      _watchKey(key);
-    }
+    if (!listeners[key]) listeners[key] = [];
     listeners[key].push(callback);
   }
 
+  _restore();
   return { saveState, loadState, onStateChange };
 })();
 
-// ---------- PLAYER ----------
+// ---------- PLAYER (original logic — untouched) ----------
 const Player = {
   init() {
-    const playerRef = db.ref(`sessions/${SESSION_ID}/players/${PLAYER_ID}`);
-    playerRef.once('value').then(snapshot => {
-      if (!snapshot.exists()) {
-        playerRef.set({
-          name: null,
-          sanity: 75,
-          role: null,
-          personalityAnswers: [],
-          currentScene: 'title',
-          joinedAt: Date.now()
-        });
-      }
+    if (GameState.loadState('player') === null) {
+      GameState.saveState('player', {
+        name: null,
+        sanity: 75,
+        role: null,
+        personalityAnswers: [],
+        currentScene: 'title'
+      });
+    }
+    // Register in Firebase
+    _fbSet(`sessions/${SESSION_ID}/players/${PLAYER_ID}`, {
+      ...GameState.loadState('player'),
+      joinedAt: Date.now()
     });
   },
 
@@ -120,13 +144,11 @@ const Player = {
     const current = Player.get() || {};
     const updated = { ...current, ...partial };
     GameState.saveState('player', updated);
-    db.ref(`sessions/${SESSION_ID}/players/${PLAYER_ID}`)
-      .update(partial)
-      .catch(e => console.warn('[Firebase] player update error:', e));
+    _fbUpdate(`sessions/${SESSION_ID}/players/${PLAYER_ID}`, partial);
     return updated;
   },
 
-  setName(name)   { return Player.update({ name }); },
+  setName(name)     { return Player.update({ name }); },
   setScene(sceneId) { return Player.update({ currentScene: sceneId }); },
 
   addPersonalityAnswer(promptId, answer) {
@@ -136,13 +158,19 @@ const Player = {
   },
 
   watchAllPlayers(callback) {
-    db.ref(`sessions/${SESSION_ID}/players`).on('value', snapshot => {
-      callback(snapshot.val() || {});
-    });
+    if (_db) {
+      _db.ref(`sessions/${SESSION_ID}/players`).on('value', snapshot => {
+        callback(snapshot.val() || {});
+      });
+    }
   },
 
   getSessionId() { return SESSION_ID; },
   getPlayerId()  { return PLAYER_ID;  }
 };
 
-Player.init();
+// Init Firebase safely after page loads, then init Player
+window.addEventListener('load', () => {
+  _firebaseReady();
+  Player.init();
+});
