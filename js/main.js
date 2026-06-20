@@ -87,22 +87,18 @@
 
   // ---------- SCENE TRANSITION HELPER ----------
   function goToScene(sceneId) {
-    document.querySelectorAll('.scene').forEach(s => {
-      if (s.id === sceneId) return;
-      s.classList.remove('active');
-      // Wipe any lingering narrative text/labels from outgoing scenes.
-      // .scene uses absolute positioning + an opacity crossfade, so a
-      // scene that's merely fading out (rather than fully hidden) was
-      // still rendering its last line directly on top of the next
-      // scene's first line during the transition window.
-      s.querySelectorAll('.narrative-text, .room-event-meta').forEach(el => {
-        if (el._glitchCancel) el._glitchCancel();
-        el.innerHTML = '';
-      });
-    });
+    document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
     const target = document.getElementById(sceneId);
     if (target) target.classList.add('active');
     Player.setScene(sceneId);
+  }
+
+  // ---------- CURSOR TRAIL (global, persists across all scenes) ----------
+  let stopCursorTrail = null;
+  function startCursorTrail() {
+    if (stopCursorTrail) return;
+    const app = document.getElementById('app');
+    stopCursorTrail = Butterfly.cursorTrail(app, { variant: 'black' });
   }
 
   // ====================================================================
@@ -113,16 +109,17 @@
     const titleScene = document.getElementById('scene-title');
     let stopButterflies = null;
 
-    // Ambient butterflies once unlocked
+    // Ambient butterflies once unlocked — black, frequent ("a lot"), per request
     function startAmbience() {
       if (stopButterflies) return;
-      stopButterflies = Butterfly.ambient(titleScene, 4500);
+      stopButterflies = Butterfly.ambient(titleScene, 1400, { variant: 'black', count: 2 });
     }
 
     // Any click anywhere unlocks audio (browser requirement) and starts music
     document.body.addEventListener('click', function unlockOnce() {
       AudioManager.unlock('menu');
       startAmbience();
+      startCursorTrail();
       if (clickHint) clickHint.style.display = 'none';
       document.body.removeEventListener('click', unlockOnce);
     }, { once: true });
@@ -178,6 +175,9 @@
   // Triggers the false-interaction butterfly moment right after this line
   const PROLOGUE_BUTTERFLY_TRIGGER = 'A black butterfly lands somewhere nearby.';
 
+  // Triggers a lingering black butterfly cluster at the Prologue's close
+  const PROLOGUE_WAITING_TRIGGER = 'the butterfly waits.';
+
   function runPrologue() {
     const textEl = document.getElementById('prologue-text');
     const sceneEl = document.getElementById('scene-prologue');
@@ -212,46 +212,27 @@
       const render = () => {
         if (beat === PROLOGUE_FLICKER_LINE) {
           const span = document.createElement('span');
-          span.className = 'beat beat-flicker';
+          span.className = 'beat';
           span.style.animation = 'none';
           span.style.opacity = '1';
           textEl.innerHTML = '';
           textEl.appendChild(span);
           flickerIn(span, beat);
-
-          // A small swarm rather than a single butterfly, so it's
-          // unmistakable no matter how long the player took to get here.
-          // Stays dark/violet (not red) — this line is "received", not
-          // a threat cue.
-          AudioManager.playStatic(0.35);
-          Butterfly.spawn(sceneEl, {
-            count: 4,
-            variant: 'black',
-            size: 60,
-            duration: [6000, 9000],
-            startY: [20, 60],
-            driftRange: 320
-          });
         } else {
           textEl.innerHTML = `<span class="beat">${beat}</span>`;
         }
         index++;
         awaitingClick = true;
 
-        // False interaction: a real butterfly drifts across, clickable but inert.
-        // This is the one the line is actually describing — it needs to be
-        // unmistakable, not just another ambient particle.
+        // False interaction: black butterflies drift across, clickable but inert
         if (beat === PROLOGUE_BUTTERFLY_TRIGGER) {
-          AudioManager.playStatic(0.3);
-          Butterfly.spawn(sceneEl, {
-            count: 3,
-            variant: 'black',
-            size: 80,
-            duration: [4500, 6000],
-            startY: [30, 50],
-            driftRange: 260
-          });
+          Butterfly.spawn(sceneEl, { count: 5, duration: [3200, 5200], variant: 'black' });
           extraDelay = 600; // next beat lands slightly later than expected, regardless of click
+        }
+
+        // Closing beat: the butterfly motif lingers as the Prologue ends
+        if (beat === PROLOGUE_WAITING_TRIGGER) {
+          Butterfly.spawn(sceneEl, { count: 6, duration: [4000, 7000], variant: 'black' });
         }
       };
 
@@ -365,15 +346,9 @@
       }, 4300);
 
       setTimeout(() => {
-        // Solo-test placeholder: real distribution is 2 Wanderer / 1 Betrayer /
-        // 1 Observer / 1 Forgotten across a 5-player session (locked design),
-        // assigned by the Session Lobby system once it exists. Until then,
-        // weight a single-player roll to match that ratio (2/5 Wanderer odds)
-        // rather than an even 1-in-4 roll across all roles.
-        const weightedRoles = ['wanderer', 'wanderer', 'betrayer', 'observer', 'forgotten'];
-        const assignedRole = weightedRoles[Math.floor(Math.random() * weightedRoles.length)];
-        Player.update({ role: assignedRole });
-
+        // Role is no longer assigned here — the Session Lobby now performs
+        // real 2 Wanderer / 1 Betrayer / 1 Observer / 1 Forgotten assignment
+        // once all 5 players have joined (see assignRolesIfHost() in runLobby).
         goToScene('scene-name-input');
         AudioManager.play('nameInput');
       }, 6100);
@@ -439,7 +414,6 @@
 
       // ---- EVENT 1: ROLL CALL ----
       NPC.showBackgroundStudents(4);
-      Butterfly.spawn(sceneEl, { count: 1, variant: 'black', duration: [5000, 7000] });
       await showLine('Five chairs. Five names. None of them feel new.', { meta: 'Roll Call' });
       NPC.clearZone();
 
@@ -467,15 +441,13 @@
       await showLine('The bell does not ring. You simply know it\'s time to leave.', { meta: 'Classroom', holdForClick: false });
       await wait(1800);
 
-      sceneEl.style.transition = 'opacity 1.2s ease';
-      sceneEl.style.opacity = '0';
+      sceneEl.classList.add('scene-fading-out');
       await wait(1300);
 
+      sceneEl.classList.remove('scene-fading-out');
       goToScene('scene-hallway');
       AudioManager.play('hallway');
       runHallway();
-      sceneEl.style.opacity = '';
-      sceneEl.style.transition = '';
     }
 
     function runQuietQuestion() {
@@ -621,22 +593,19 @@
       // ---- SEPARATION EVENT (key hallway mechanic) ----
       await wait(400);
       await showLine('For a moment, this doesn\'t look like the same hallway anymore.', { meta: 'Separation' });
-      Butterfly.spawn(sceneEl, { count: 1, variant: 'red', duration: [4500, 6000] });
       await showLine('But you\'re still in the same space. You\'re sure of that. Mostly.', { meta: 'Separation' });
 
       // ---- EXIT ----
       await showLine('"The library remembers you."', { meta: 'Hallway', holdForClick: false, glitch: true });
       await wait(2200);
 
-      sceneEl.style.transition = 'opacity 1.2s ease';
-      sceneEl.style.opacity = '0';
+      sceneEl.classList.add('scene-fading-out');
       await wait(1300);
 
+      sceneEl.classList.remove('scene-fading-out');
       goToScene('scene-library');
       AudioManager.play('library');
       runLibrary();
-      sceneEl.style.opacity = '';
-      sceneEl.style.transition = '';
     }
 
     function runMovementChoice() {
@@ -747,8 +716,6 @@
       const role = (Player.get().role) || 'wanderer';
       await showLine(FRAGMENT_REACTIONS[role] || FRAGMENT_REACTIONS.wanderer, { meta: 'Fragment' });
 
-      Butterfly.spawn(sceneEl, { count: 1, variant: 'black', duration: [6000, 8000] });
-
       // ---- ROLE-SPLIT INFORMATION EVENT ----
       // Solo-test note: full design has players compare what they each read
       // and find contradictions. True cross-player comparison needs the
@@ -772,15 +739,13 @@
       await showLine('The Librarian closes the book without looking at it. Without looking at you.', { meta: 'Library', holdForClick: false });
       await wait(2000);
 
-      sceneEl.style.transition = 'opacity 1.2s ease';
-      sceneEl.style.opacity = '0';
+      sceneEl.classList.add('scene-fading-out');
       await wait(1300);
 
+      sceneEl.classList.remove('scene-fading-out');
       goToScene('scene-clocktower');
       AudioManager.play('clockTower');
       runClockTower();
-      sceneEl.style.opacity = '';
-      sceneEl.style.transition = '';
     }
 
     function runObserverChoice() {
@@ -921,7 +886,6 @@
       sceneEl.style.filter = 'none';
       sceneEl.style.transition = '';
       await showLine('Time did not pass correctly.', { meta: 'Time Skip', glitch: true });
-      Butterfly.spawn(sceneEl, { count: 1, variant: 'red', duration: [4000, 5500] });
 
       const role = (Player.get().role) || 'wanderer';
       await showLine(TIME_SKIP_REACTIONS[role] || TIME_SKIP_REACTIONS.wanderer, { meta: 'Time Skip' });
@@ -949,15 +913,13 @@
       await showLine('The tower goes quiet. Somewhere below, a door is already open.', { meta: 'Clock Tower', holdForClick: false });
       await wait(2000);
 
-      sceneEl.style.transition = 'opacity 1.4s ease';
-      sceneEl.style.opacity = '0';
+      sceneEl.classList.add('scene-fading-out');
       await wait(1500);
 
+      sceneEl.classList.remove('scene-fading-out');
       goToScene('scene-finalgate');
       AudioManager.play('finalGate');
       runFinalGate();
-      sceneEl.style.opacity = '';
-      sceneEl.style.transition = '';
     }
 
     function runFinalAlignment() {
@@ -1108,7 +1070,7 @@
       // ---- ENDING CALCULATION ENGINE ----
       const endingKey = calculateEnding({ tier, trust, role, observerChoice, butterflyConditionMet, groupTrustCollapse });
 
-      Player.update({ finalEndingKey: endingKey, finalRoleRevealed: role, observerChoice });
+      Player.update({ finalEndingKey: endingKey, finalRoleRevealed: role });
 
       await showLine('The academy has decided what it remembers.', { meta: 'Final Gate', holdForClick: false });
       await wait(2200);
@@ -1116,10 +1078,10 @@
       sceneEl.style.transition = 'opacity 1.6s ease';
       sceneEl.style.opacity = '0';
       await wait(1700);
-      sceneEl.style.opacity = '';
-      sceneEl.style.transition = '';
 
       runEnding(endingKey);
+      sceneEl.style.transition = '';
+      sceneEl.style.opacity = '';
     }
 
     function runObserverDecision() {
@@ -1185,85 +1147,57 @@
       bg: 'https://files.catbox.moe/atorqo.jpg',
       track: 'trueEnding',
       title: 'True Escape',
-      text: 'You exited correctly.\n\nThat is why the system marked you as missing.\n\nEscape is only valid when the academy agrees you were real.',
-      closingLine: 'The academy remembers you as one who left.',
-      hiddenLetter: 'We tested multiple versions of your exit.\nOnly one version believes it succeeded.\nWe are not sure which one you are.'
+      text: 'The doors open. Not all of you remember why you came. It doesn\'t matter now. You leave anyway.',
+      closingLine: 'The academy remembers you as one who left.'
     },
     betrayalEnding: {
       bg: 'https://files.catbox.moe/fluqye.jpg',
       track: 'betrayalEnding',
       title: 'Betrayal',
-      text: 'There was no betrayal event.\n\nOnly disagreement in perception timing.\n\nThe group ended at different moments.',
-      closingLine: 'The academy remembers you as one who stayed quiet.',
-      hiddenLetter: 'We did not assign a traitor.\nWe assigned probability of trust collapse.\nYou all fulfilled it differently.'
+      text: 'Trust did not hold. The academy resets, patient as ever, already preparing five new chairs.',
+      closingLine: 'The academy remembers you as one who stayed quiet.'
     },
     forgottenEnding: {
       bg: 'https://files.catbox.moe/1keikq.jpg',
       track: 'forgottenEnding',
       title: 'Forgotten',
-      text: 'You were not erased.\n\nYou were simply no longer referenced.\n\nThe academy stopped pointing at you.',
-      closingLine: 'The academy remembers you. You no longer remember it.',
-      hiddenLetter: 'A student remained after classification ended.\nWe continued without updating your status.\nYou still exist in unlabelled storage.'
+      text: 'You stop trying to remember your name. It stops mattering. The halls feel a little more like home than they should.',
+      closingLine: 'The academy remembers you. You no longer remember it.'
     },
     observerEnding: {
       bg: 'https://files.catbox.moe/bcavv5.jpg',
       track: 'observerEnding',
       title: 'Observer',
-      text: 'You left with full awareness.\n\nThat is considered system corruption.\n\nAwareness is not permitted outside the academy.',
-      closingLine: 'The academy remembers what you chose to see.',
-      hiddenLetter: 'Observers are not released.\nThey are relocated between interpretations.\nYou will be watching again soon.',
-      variants: {
-        escape: {
-          text: 'You left with full awareness.\n\nThat is considered system corruption.\n\nAwareness is not permitted outside the academy.',
-          hiddenLetter: 'Observers are not released.\nThey are relocated between interpretations.\nYou will be watching again soon.'
-        },
-        stay: {
-          text: 'You stopped needing confirmation.\n\nThe academy accepted this as permanence.\n\nYou are now part of its verification layer.',
-          hiddenLetter: 'You are the reason events feel repeated.\nYou are used to check if memory still fails.'
-        },
-        sacrifice: {
-          text: 'Your decision was recorded after it already happened.\n\nThe others left before you chose.\n\nSequence integrity restored.',
-          hiddenLetter: 'We thank you for resolving timeline inconsistency.\nYour presence was the error we needed.'
-        }
-      }
+      text: 'What you chose to see becomes what was true. The others never know how much of this was your decision.',
+      closingLine: 'The academy remembers what you chose to see.'
     },
     secretButterfly: {
       bg: 'https://files.catbox.moe/4egrjl.jpg',
       track: 'hiddenEnding',
       title: 'The Butterfly',
-      text: 'There is no hidden ending.\n\nThis is the version that already included it.\n\nYou are reading a corrected memory.',
-      closingLine: 'The academy has finished remembering you.',
-      hiddenLetter: 'We stopped separating player from outcome.\nEverything you did was already stored as past behavior.\nThe academy is not remembering you.\nIt is replaying you.'
+      text: 'Every truth is accounted for. Every name is in its place. A single butterfly settles, finally, somewhere still.',
+      closingLine: 'The academy has finished remembering you.'
     }
   };
 
-  function _resolveEndingContent(endingKey) {
-    const base = ENDING_CONTENT[endingKey] || ENDING_CONTENT.forgottenEnding;
-    const variantKey = Player.get().observerChoice;
-    if (base.variants && variantKey && base.variants[variantKey]) {
-      return { ...base, ...base.variants[variantKey] };
-    }
-    return base;
-  }
-
   function runEnding(endingKey) {
-    const content = _resolveEndingContent(endingKey);
+    const content = ENDING_CONTENT[endingKey] || ENDING_CONTENT.forgottenEnding;
     goToScene('scene-ending');
     AudioManager.play(content.track, { loop: false, volume: 0.5 });
 
     document.getElementById('ending-bg').style.backgroundImage = `url('${content.bg}')`;
     document.getElementById('ending-title').textContent = content.title;
-    document.getElementById('ending-text').innerHTML = '';
+    document.getElementById('ending-text').textContent = '';
 
     const textEl = document.getElementById('ending-text');
     setTimeout(() => {
       textEl.style.transition = 'opacity 1.5s ease';
       textEl.style.opacity = '0';
-      textEl.innerHTML = content.text.split('\n\n').map(p => `<span class="beat">${p}</span>`).join('');
+      textEl.textContent = content.text;
       requestAnimationFrame(() => { textEl.style.opacity = '1'; });
     }, 600);
 
-    setTimeout(() => runCreditScene(endingKey, content), 6500);
+    setTimeout(() => runCreditScene(endingKey, content), 5500);
   }
 
   // ====================================================================
@@ -1277,124 +1211,212 @@
     const creditScene = document.getElementById('scene-credits-final');
     const closingLineEl = document.getElementById('credit-closing-line');
     const roleRevealEl = document.getElementById('credit-role-reveal');
-    const letterEl = document.getElementById('credit-hidden-letter');
-    const titleBlockEl = document.getElementById('credit-title-block');
     const returnOptions = document.getElementById('credit-return-options');
-    const secretEpilogueEl = document.getElementById('credit-secret-epilogue');
-    const secretTextEl = document.getElementById('secret-epilogue-text');
 
     closingLineEl.textContent = '';
     roleRevealEl.style.display = 'none';
-    roleRevealEl.textContent = '';
-    letterEl.style.display = 'none';
-    letterEl.textContent = '';
-    titleBlockEl.style.display = 'none';
-    titleBlockEl.style.animation = 'none';
     returnOptions.style.display = 'none';
-    secretEpilogueEl.style.display = 'none';
-    secretEpilogueEl.style.animation = 'none';
 
-    function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+    // Beat 1: silence (2-3s, handled by the delay before this function runs
+    // plus this initial pause) — fade audio out
+    AudioManager.stop();
 
-    function fadeShow(el, text, { display = 'block', ms = 1500, html = false } = {}) {
-      el.style.display = display;
-      el.style.transition = `opacity ${ms / 1000}s ease`;
-      el.style.opacity = '0';
-      if (html) el.innerHTML = text; else el.textContent = text;
-      requestAnimationFrame(() => { el.style.opacity = '1'; });
-    }
+    setTimeout(() => {
+      // Beat 2: the academy speaks last
+      closingLineEl.style.transition = 'opacity 1.5s ease';
+      closingLineEl.style.opacity = '0';
+      closingLineEl.textContent = content.closingLine;
+      requestAnimationFrame(() => { closingLineEl.style.opacity = '1'; });
+    }, 2200);
 
-    async function sequence() {
-      // Beat 1: silence
-      AudioManager.stop();
-      await wait(2200);
-
-      // Beat 2: the academy speaks last (ending-specific closing line)
-      fadeShow(closingLineEl, content.closingLine);
-      await wait(3000);
-
+    setTimeout(() => {
       // Beat 3: private role reveal — own role only, per locked rule
       const role = Player.get().role || 'wanderer';
       const realLabel = ROLE_REAL_LABELS[role];
-      fadeShow(roleRevealEl, `You were the ${realLabel}.`, { ms: 1200 });
-      await wait(2000);
+      roleRevealEl.style.display = 'block';
+      roleRevealEl.style.transition = 'opacity 1.2s ease';
+      roleRevealEl.style.opacity = '0';
+      roleRevealEl.textContent = `You were the ${realLabel}.`;
+      requestAnimationFrame(() => { roleRevealEl.style.opacity = '1'; });
+    }, 5200);
 
-      // Beat 4: the hidden letter — a system "leak", rendered like a
-      // glitching fragment that shouldn't be visible to the player.
-      letterEl.style.display = 'block';
-      letterEl.style.opacity = '1';
-      AudioManager.playStatic(0.5);
-      GlitchDialogue.render(letterEl, content.hiddenLetter, 15); // forced 'lost' tier for max distortion
-      await wait(3600);
-
-      // Beat 5: one last butterfly, alone on a still screen
+    setTimeout(() => {
+      // Beat 4: one last butterfly, alone on a still screen
       Butterfly.spawn(creditScene, { count: 1, duration: [5000, 6000] });
-      await wait(2000);
+    }, 7200);
 
-      // Beat 6: quiet outro lines
-      const outroLines = [
-        'The butterfly remains.',
-        'The academy remembers every name.',
-        'Even the ones that were never spoken.',
-        'Even the ones that were forgotten.',
-        'Thank you for playing.',
-        'If you remember this place… it may remember you too.'
-      ];
-      for (const line of outroLines) {
-        fadeShow(closingLineEl, line, { ms: 1200 });
-        await wait(2400);
-      }
-
-      // Beat 7: title block
-      closingLineEl.style.transition = 'opacity 0.8s ease';
-      closingLineEl.style.opacity = '0';
-      await wait(800);
-      titleBlockEl.style.display = 'flex';
-      titleBlockEl.style.animation = 'beatIn 1.6s var(--ease-slow) forwards';
-      await wait(2000);
-
-      // Beat 8: return options
+    setTimeout(() => {
+      // Beat 5: return options
       returnOptions.style.display = 'flex';
       returnOptions.style.opacity = '0';
       returnOptions.style.transition = 'opacity 1.5s ease';
       requestAnimationFrame(() => { returnOptions.style.opacity = '1'; });
+    }, 10500);
 
-      // Secret Butterfly Ending only: the academy notices you've been
-      // here before, and asks if you want it to notice on purpose.
-      if (endingKey === 'secretButterfly') {
-        await wait(4000);
-        secretTextEl.textContent = '"This credit sequence has been viewed before."';
-        secretEpilogueEl.style.display = 'flex';
-        secretEpilogueEl.style.animation = 'beatIn 1.4s var(--ease-slow) forwards';
-        await wait(1800);
-        secretTextEl.textContent = '"This credit sequence has been viewed before." "Continue?"';
-      }
-    }
-
-    sequence();
-
-    document.getElementById('btn-read-letter').onclick = () => {
-      document.getElementById('hidden-letter-modal-text').textContent = content.hiddenLetter;
-      document.getElementById('modal-hidden-letter').classList.add('active');
-    };
-    document.getElementById('close-hidden-letter').onclick = () => {
-      document.getElementById('modal-hidden-letter').classList.remove('active');
-    };
     document.getElementById('btn-play-again').onclick = () => {
       window.location.reload();
     };
     document.getElementById('btn-return-title').onclick = () => {
       window.location.reload();
     };
-    document.getElementById('btn-secret-return').onclick = () => {
-      window.location.reload();
-    };
-    document.getElementById('btn-secret-remember').onclick = async () => {
-      secretEpilogueEl.querySelector('.menu-options').style.display = 'none';
-      secretTextEl.textContent = '"Player record updated."';
-      await wait(1800);
-      window.location.reload();
-    };
+  }
+
+  // ====================================================================
+  // SESSION LOBBY
+  // (locked design: Session Code Event -> Waiting Room -> Synchronized Entry)
+  // ====================================================================
+  function runLobby() {
+    const sceneEl = document.getElementById('scene-lobby');
+    const choiceContent = document.getElementById('lobby-choice-content');
+    const joinContent = document.getElementById('lobby-join-content');
+    const waitingContent = document.getElementById('lobby-waiting-content');
+    const errorEl = document.getElementById('lobby-error');
+    const codeDisplay = document.getElementById('lobby-code-display');
+    const countEl = document.getElementById('lobby-count');
+
+    let stopButterflies = null;
+    let entryStarted = false;
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.classList.add('visible');
+    }
+
+    function enterWaitingRoom(code) {
+      choiceContent.style.display = 'none';
+      joinContent.style.display = 'none';
+      waitingContent.style.display = 'flex';
+      codeDisplay.textContent = code;
+      stopButterflies = Butterfly.ambient(sceneEl, 3500);
+
+      // Solo-testing convenience: lets you proceed alone without 4 others
+      // joining. Safe to remove once real 5-player testing begins.
+      const soloSkip = document.createElement('button');
+      soloSkip.className = 'menu-option';
+      soloSkip.style.marginTop = '1.5rem';
+      soloSkip.style.opacity = '0.5';
+      soloSkip.textContent = '(solo test: continue without waiting)';
+      soloSkip.addEventListener('click', () => {
+        if (!entryStarted) {
+          entryStarted = true;
+          beginSynchronizedEntry();
+        }
+      });
+      waitingContent.appendChild(soloSkip);
+
+      Session.onUpdate(session => {
+        if (!session || !session.players) return;
+        const count = Object.keys(session.players).length;
+        countEl.textContent = `${count} / 5 have arrived`;
+
+        // Per locked design: cannot proceed until exactly 5 are present
+        if (count >= 5 && !entryStarted) {
+          entryStarted = true;
+          beginSynchronizedEntry();
+        }
+      });
+    }
+
+    async function beginSynchronizedEntry() {
+      if (stopButterflies) stopButterflies();
+      await Session.setPlayerData({ name: Player.get().name });
+
+      waitingContent.innerHTML = '<p class="narrative-text"><span class="beat">Five chairs were always going to be filled.</span></p>';
+      await new Promise(r => setTimeout(r, 2600));
+
+      // Role assignment now happens through the real session rather than
+      // the solo weighted-random placeholder — see assignRolesIfHost().
+      await assignRolesIfHost();
+
+      Trust.init();
+      sceneEl.classList.add('scene-fading-out');
+      await new Promise(r => setTimeout(r, 1300));
+      sceneEl.classList.remove('scene-fading-out');
+
+      goToScene('scene-classroom');
+      AudioManager.play('classroom');
+      runClassroom();
+    }
+
+    /**
+     * Role assignment: only the session creator (first player, detected by
+     * earliest joinedAt) performs the 2/1/1/1 assignment and writes it to
+     * Firebase, so every player ends up with a role written exactly once
+     * rather than 5 clients racing to assign independently.
+     */
+    async function assignRolesIfHost() {
+      const snapshot = await firebase.database().ref('sessions/' + Session.getCode()).once('value');
+      const session = snapshot.val();
+      if (!session || !session.players) return;
+
+      const entries = Object.entries(session.players);
+      const sortedByJoin = entries.sort((a, b) => a[1].joinedAt - b[1].joinedAt);
+      const isHost = sortedByJoin[0][0] === Session.getPlayerId();
+
+      if (isHost) {
+        const alreadyAssigned = entries.every(([, p]) => p.role);
+        if (!alreadyAssigned) {
+          const roles = shuffle(['wanderer', 'wanderer', 'betrayer', 'observer', 'forgotten']);
+          const updates = {};
+          sortedByJoin.forEach(([pid], i) => {
+            updates[`players/${pid}/role`] = roles[i];
+          });
+          await firebase.database().ref('sessions/' + Session.getCode()).update(updates);
+        }
+      }
+
+      // All players (host included) wait briefly then read their own role
+      await new Promise(r => setTimeout(r, isHost ? 0 : 600));
+      const myRoleSnap = await firebase.database()
+        .ref(`sessions/${Session.getCode()}/players/${Session.getPlayerId()}/role`)
+        .once('value');
+      const myRole = myRoleSnap.val();
+      if (myRole) Player.update({ role: myRole });
+    }
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    document.getElementById('btn-lobby-create').addEventListener('click', async () => {
+      choiceContent.querySelectorAll('button').forEach(b => b.disabled = true);
+      try {
+        const code = await Session.create();
+        enterWaitingRoom(code);
+      } catch (e) {
+        showError('Could not reach the academy. Check your connection and try again.');
+        choiceContent.querySelectorAll('button').forEach(b => b.disabled = false);
+      }
+    });
+
+    document.getElementById('btn-lobby-join').addEventListener('click', () => {
+      choiceContent.style.display = 'none';
+      joinContent.style.display = 'flex';
+    });
+
+    document.getElementById('btn-lobby-join-confirm').addEventListener('click', async () => {
+      const code = document.getElementById('lobby-code-field').value.trim();
+      if (!code) return;
+      errorEl.classList.remove('visible');
+
+      const result = await Session.join(code);
+      if (!result.ok) {
+        showError(result.reason === 'full'
+          ? 'That session already has five. The academy will not allow more.'
+          : 'No such session. Check the code and try again.');
+        return;
+      }
+      enterWaitingRoom(Session.getCode());
+    });
+
+    document.getElementById('lobby-code-field').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('btn-lobby-join-confirm').click();
+    });
   }
 
   // ====================================================================
@@ -1410,10 +1432,9 @@
         return;
       }
       Player.setName(name);
-      Trust.init();
-      goToScene('scene-classroom');
-      AudioManager.play('classroom');
-      runClassroom();
+      goToScene('scene-lobby');
+      AudioManager.play('nameInput');
+      runLobby();
     });
 
     // Allow Enter key to confirm
@@ -1430,7 +1451,6 @@
   document.addEventListener('DOMContentLoaded', () => {
     initTitleScreen();
     initNameInput();
-    if (window.CursorTrail) CursorTrail.init();
   });
 
 })();
