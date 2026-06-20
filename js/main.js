@@ -1384,12 +1384,14 @@
     }
 
     document.getElementById('btn-lobby-create').addEventListener('click', async () => {
+      errorEl.classList.remove('visible');
       choiceContent.querySelectorAll('button').forEach(b => b.disabled = true);
       try {
         const code = await Session.create();
         enterWaitingRoom(code);
       } catch (e) {
-        showError('Could not reach the academy. Check your connection and try again.');
+        console.error('Session.create() failed:', e);
+        showError('Could not reach the academy: ' + (e && e.message ? e.message : 'unknown error') + '. Check your connection and try again.');
         choiceContent.querySelectorAll('button').forEach(b => b.disabled = false);
       }
     });
