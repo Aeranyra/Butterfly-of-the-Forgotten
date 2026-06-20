@@ -198,9 +198,6 @@
       const render = () => {
         if (beat === PROLOGUE_FLICKER_LINE) {
           const span = document.createElement('span');
-          span.className = 'beat';
-          span.style.animation = 'none';
-          span.style.opacity = '1';
           textEl.innerHTML = '';
           textEl.appendChild(span);
           GlitchDialogue.render(span, beat, Player.get().sanity);
