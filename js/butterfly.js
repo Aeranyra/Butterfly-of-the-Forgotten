@@ -18,10 +18,10 @@ const Butterfly = (() => {
       glow: 'rgba(107, 91, 122, 0.6)'
     },
     black: {
-      wingTop: '#1a1620', wingTopOp: 0.95,
-      wingBottom: '#0c0a10', wingBottomOp: 0.92,
+      wingTop: '#2a2435', wingTopOp: 1,
+      wingBottom: '#16121c', wingBottomOp: 1,
       body: '#000000',
-      glow: 'rgba(176, 68, 68, 0.55)'
+      glow: 'rgba(214, 90, 90, 0.85)'
     },
     red: {
       wingTop: '#9b3a3a', wingTopOp: 0.9,
@@ -34,13 +34,13 @@ const Butterfly = (() => {
   function markup(variantName) {
     const v = VARIANTS[variantName] || VARIANTS.violet;
     return `
-    <svg viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 5px ${v.glow})">
+    <svg viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 6px ${v.glow}) drop-shadow(0 0 14px ${v.glow})">
       <g>
         <path class="wing" d="M13 13 C8 4, 1 4, 2 11 C2.5 15, 8 15, 13 13 Z" fill="${v.wingTop}" opacity="${v.wingTopOp}"/>
         <path class="wing" d="M13 13 C18 4, 25 4, 24 11 C23.5 15, 18 15, 13 13 Z" fill="${v.wingTop}" opacity="${v.wingTopOp}"/>
         <path class="wing" d="M13 13 C9 19, 4 20, 5 15.5 C5.5 13.5, 9 13, 13 13 Z" fill="${v.wingBottom}" opacity="${v.wingBottomOp}"/>
         <path class="wing" d="M13 13 C17 19, 22 20, 21 15.5 C20.5 13.5, 17 13, 13 13 Z" fill="${v.wingBottom}" opacity="${v.wingBottomOp}"/>
-        <line x1="13" y1="9" x2="13" y2="17" stroke="${v.body}" stroke-width="0.8"/>
+        <line x1="13" y1="9" x2="13" y2="17" stroke="${v.body}" stroke-width="1.2"/>
       </g>
     </svg>`;
   }
@@ -102,11 +102,45 @@ const Butterfly = (() => {
 
   /**
    * Continuous ambient spawning, e.g. for the title screen.
+   * Caps how many can be alive at once so slower devices don't
+   * accumulate animated nodes if a tab is backgrounded and timers
+   * fire in a burst when it regains focus.
    * Returns a stop function.
    */
-  function ambient(container, intervalMs = 4500) {
-    spawn(container, { count: 1 });
-    const id = setInterval(() => spawn(container, { count: 1 }), intervalMs);
+  function ambient(container, intervalMs = 4500, maxConcurrent = 5) {
+    let alive = 0;
+    const spawnOne = () => {
+      if (alive >= maxConcurrent) return;
+      alive++;
+      const el = document.createElement('div');
+      el.className = 'butterfly';
+      el.innerHTML = markup('violet');
+
+      const startX = Math.random() * 100;
+      const startYPct = 60 + Math.random() * 35;
+      const driftX = (Math.random() - 0.5) * 400;
+      const driftY = -100 - Math.random() * 200;
+      const driftRot = (Math.random() - 0.5) * 60;
+      const dur = 8000 + Math.random() * 6000;
+      const delay = Math.random() * 3000;
+
+      el.style.left = `${startX}%`;
+      el.style.top = `${startYPct}%`;
+      el.style.setProperty('--drift-x', `${driftX}px`);
+      el.style.setProperty('--drift-y', `${driftY}px`);
+      el.style.setProperty('--drift-rot', `${driftRot}deg`);
+      el.style.animationDuration = `${dur}ms`;
+      el.style.animationDelay = `${delay}ms`;
+
+      container.appendChild(el);
+      setTimeout(() => {
+        el.remove();
+        alive--;
+      }, dur + delay + 200);
+    };
+
+    spawnOne();
+    const id = setInterval(spawnOne, intervalMs);
     return () => clearInterval(id);
   }
 

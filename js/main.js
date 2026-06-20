@@ -87,7 +87,19 @@
 
   // ---------- SCENE TRANSITION HELPER ----------
   function goToScene(sceneId) {
-    document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.scene').forEach(s => {
+      if (s.id === sceneId) return;
+      s.classList.remove('active');
+      // Wipe any lingering narrative text/labels from outgoing scenes.
+      // .scene uses absolute positioning + an opacity crossfade, so a
+      // scene that's merely fading out (rather than fully hidden) was
+      // still rendering its last line directly on top of the next
+      // scene's first line during the transition window.
+      s.querySelectorAll('.narrative-text, .room-event-meta').forEach(el => {
+        if (el._glitchCancel) el._glitchCancel();
+        el.innerHTML = '';
+      });
+    });
     const target = document.getElementById(sceneId);
     if (target) target.classList.add('active');
     Player.setScene(sceneId);
@@ -200,7 +212,7 @@
       const render = () => {
         if (beat === PROLOGUE_FLICKER_LINE) {
           const span = document.createElement('span');
-          span.className = 'beat';
+          span.className = 'beat beat-flicker';
           span.style.animation = 'none';
           span.style.opacity = '1';
           textEl.innerHTML = '';
@@ -219,7 +231,7 @@
           Butterfly.spawn(sceneEl, {
             count: 1,
             variant: 'black',
-            size: 46,
+            size: 90,
             duration: [4500, 6000],
             startY: [30, 50],
             driftRange: 220
@@ -443,12 +455,12 @@
       sceneEl.style.transition = 'opacity 1.2s ease';
       sceneEl.style.opacity = '0';
       await wait(1300);
-      sceneEl.style.opacity = '';
-      sceneEl.style.transition = '';
 
       goToScene('scene-hallway');
       AudioManager.play('hallway');
       runHallway();
+      sceneEl.style.opacity = '';
+      sceneEl.style.transition = '';
     }
 
     function runQuietQuestion() {
@@ -604,12 +616,12 @@
       sceneEl.style.transition = 'opacity 1.2s ease';
       sceneEl.style.opacity = '0';
       await wait(1300);
-      sceneEl.style.opacity = '';
-      sceneEl.style.transition = '';
 
       goToScene('scene-library');
       AudioManager.play('library');
       runLibrary();
+      sceneEl.style.opacity = '';
+      sceneEl.style.transition = '';
     }
 
     function runMovementChoice() {
@@ -748,12 +760,12 @@
       sceneEl.style.transition = 'opacity 1.2s ease';
       sceneEl.style.opacity = '0';
       await wait(1300);
-      sceneEl.style.opacity = '';
-      sceneEl.style.transition = '';
 
       goToScene('scene-clocktower');
       AudioManager.play('clockTower');
       runClockTower();
+      sceneEl.style.opacity = '';
+      sceneEl.style.transition = '';
     }
 
     function runObserverChoice() {
@@ -925,12 +937,12 @@
       sceneEl.style.transition = 'opacity 1.4s ease';
       sceneEl.style.opacity = '0';
       await wait(1500);
-      sceneEl.style.opacity = '';
-      sceneEl.style.transition = '';
 
       goToScene('scene-finalgate');
       AudioManager.play('finalGate');
       runFinalGate();
+      sceneEl.style.opacity = '';
+      sceneEl.style.transition = '';
     }
 
     function runFinalAlignment() {

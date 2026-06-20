@@ -31,9 +31,21 @@ const Trust = (() => {
   }
 
   function shift(delta) {
+    const prev = value;
     value = Math.max(0, Math.min(100, value + delta));
     GameState.saveState('trust', value);
     _render();
+    if (value !== prev) {
+      const el = document.querySelector('.trust-indicator');
+      if (el) {
+        el.classList.remove('pulse');
+        // Force reflow so re-adding the class restarts the animation
+        // even if a pulse from a prior shift is still mid-flight.
+        void el.offsetWidth;
+        el.classList.add('pulse');
+        setTimeout(() => el.classList.remove('pulse'), 900);
+      }
+    }
     return value;
   }
 
