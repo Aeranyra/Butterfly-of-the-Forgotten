@@ -61,6 +61,14 @@ body {
   pointer-events: auto;
 }
 
+/* Used by room-to-room exit transitions instead of inline opacity styles,
+   so the fade never races against the .active class swap that follows it. */
+.scene.scene-fading-out {
+  opacity: 0 !important;
+  transition: opacity 1.2s var(--ease-slow);
+  pointer-events: none;
+}
+
 .scene-bg {
   position: absolute;
   inset: 0;
@@ -121,12 +129,6 @@ body {
   opacity: 0;
   transform: translateY(6px);
   animation: beatIn 1.2s var(--ease-slow) forwards;
-}
-
-.narrative-text .beat-flicker {
-  display: block;
-  color: #ff2a2a;
-  text-shadow: 0 0 8px rgba(255, 30, 30, 0.65), 0 0 18px rgba(255, 0, 0, 0.35);
 }
 
 @keyframes beatIn {
@@ -275,6 +277,17 @@ body {
   filter: drop-shadow(0 0 4px rgba(107, 91, 122, 0.6));
 }
 
+.butterfly-cursor {
+  width: 20px;
+  height: 20px;
+  transition: opacity 0.6s var(--ease-slow);
+  z-index: 5;
+}
+
+.butterfly-cursor svg {
+  filter: drop-shadow(0 0 5px rgba(10, 9, 12, 0.7));
+}
+
 .wing {
   animation: wingFlap 0.32s ease-in-out infinite alternate;
   transform-origin: center;
@@ -362,31 +375,58 @@ body {
 
 .glitch-active {
   position: relative;
-  animation: glitchShudder 0.18s steps(2, end) infinite, glitchColorFlicker 0.36s steps(1, end) infinite;
-  text-shadow: 1px 0 rgba(176, 68, 68, 0.5), -1px 0 rgba(155, 133, 176, 0.4);
+  color: var(--accent-warning-bright);
+  text-shadow:
+    1.5px 0 rgba(176, 68, 68, 0.85),
+    -1.5px 0 rgba(107, 91, 122, 0.7),
+    0 0 8px rgba(176, 68, 68, 0.4);
+  animation: glitchShudder 0.12s steps(1, end) infinite, glitchFlicker 0.31s steps(1, end) infinite;
 }
 
 @keyframes glitchShudder {
-  0% { transform: translate(0); }
-  50% { transform: translate(-1px, 0.5px); }
-  100% { transform: translate(1px, -0.5px); }
+  0%   { transform: translate(0, 0) skewX(0deg); }
+  20%  { transform: translate(-2px, 1px) skewX(-2deg); }
+  40%  { transform: translate(2px, -1px) skewX(1deg); }
+  60%  { transform: translate(-1px, -1px) skewX(0deg); }
+  80%  { transform: translate(1px, 1px) skewX(2deg); }
+  100% { transform: translate(0, 0) skewX(0deg); }
 }
 
-@keyframes glitchColorFlicker {
-  0%, 100% { color: var(--text-pale); }
-  40% { color: var(--accent-warning-bright); }
-  60% { color: var(--text-pale); }
+@keyframes glitchFlicker {
+  0%, 89% { opacity: 1; }
+  90% { opacity: 0.15; }
+  92% { opacity: 1; }
+  94% { opacity: 0.3; }
+  96% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+.glitch-active::before {
+  content: attr(data-glitch-text);
+  position: absolute;
+  inset: 0;
+  color: var(--accent-warning-bright);
+  opacity: 0.5;
+  clip-path: inset(0 0 55% 0);
+  transform: translate(2px, -1px);
+  pointer-events: none;
 }
 
 .glitch-active.intensity-lost {
-  animation: glitchShudder 0.09s steps(2, end) infinite, glitchColorFlickerHard 0.18s steps(1, end) infinite;
-  text-shadow: 2px 0 var(--accent-warning-bright), -2px 0 var(--accent-violet-bright), 0 0 10px rgba(176, 68, 68, 0.45);
+  animation-duration: 0.07s, 0.22s;
+  color: var(--accent-warning-bright);
+  text-shadow:
+    2.5px 0 rgba(176, 68, 68, 0.95),
+    -2.5px 0 rgba(107, 91, 122, 0.85),
+    0 0 14px rgba(176, 68, 68, 0.6);
 }
 
-@keyframes glitchColorFlickerHard {
-  0%, 100% { color: var(--accent-warning-bright); }
-  50% { color: var(--text-pale); }
+.glitch-active.intensity-lost::before {
+  clip-path: inset(40% 0 20% 0);
+  transform: translate(-3px, 1px);
+  opacity: 0.65;
 }
+
 
 /* ---------- PERSONALITY PROMPT NUMBER ---------- */
 
@@ -420,16 +460,6 @@ body {
   transition: opacity 1.2s var(--ease-slow), background-color 1.2s var(--ease-slow), width 1.2s var(--ease-slow);
 }
 
-.trust-indicator.pulse {
-  animation: trustPulse 0.9s ease;
-}
-
-@keyframes trustPulse {
-  0%   { transform: scaleY(1); filter: drop-shadow(0 0 0 transparent); }
-  30%  { transform: scaleY(3); filter: drop-shadow(0 0 6px currentColor); }
-  100% { transform: scaleY(1); filter: drop-shadow(0 0 0 transparent); }
-}
-
 .trust-indicator::before {
   content: '';
   position: absolute;
@@ -453,7 +483,7 @@ body {
 .npc-line {
   font-family: var(--font-display);
   font-style: italic;
-  font-size: clamp(1.15rem, 2.6vw, 1.45rem);
+  font-size: clamp(1rem, 2.2vw, 1.25rem);
   color: var(--text-dim);
   opacity: 0;
   transform: translateY(4px);
@@ -466,10 +496,9 @@ body {
 }
 
 .npc-line.background-student {
-  font-size: clamp(1.05rem, 2.6vw, 1.3rem);
+  font-size: clamp(0.95rem, 2vw, 1.05rem);
   letter-spacing: 0.03em;
-  opacity: 0.75;
-  color: var(--text-pale);
+  opacity: 0.65;
 }
 
 /* Room event meta label (e.g. "ROLL CALL", "SEATING") — same visual language
@@ -483,21 +512,61 @@ body {
   opacity: 0.6;
 }
 
-/* ---------- CURSOR TRAIL ---------- */
+/* ---------- LOBBY LAYOUT (Session Lobby waiting room) ---------- */
 
-.cursor-trail-dot {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.75;
-  transform: translate(-50%, -50%) scale(1);
-  transition: transform 0.7s ease-out, opacity 0.7s ease-out;
-  will-change: transform, opacity;
+.lobby-code-display {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  letter-spacing: 0.25em;
+  color: var(--accent-violet-bright);
+  padding: 0.4rem 1rem;
+  border: 1px solid rgba(155, 133, 176, 0.3);
+}
+
+.lobby-count {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  color: var(--text-pale);
+  opacity: 0.85;
+}
+
+.lobby-mode-toggle {
+  display: flex;
+  gap: 1.2rem;
+  margin-top: 0.5rem;
+}
+
+.lobby-code-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(232, 230, 224, 0.3);
+  color: var(--text-pale);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  letter-spacing: 0.2em;
+  text-align: center;
+  text-transform: uppercase;
+  padding: 0.5rem 1rem;
+  width: 100%;
+  max-width: 280px;
+  outline: none;
+}
+
+.lobby-code-input:focus {
+  border-color: var(--accent-violet-bright);
+}
+
+.lobby-error {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: var(--accent-warning-bright);
+  opacity: 0;
+  min-height: 1.2em;
+}
+
+.lobby-error.visible {
+  opacity: 0.9;
 }
 
 /* ---------- RESPONSIVE ---------- */
@@ -512,74 +581,7 @@ body {
   }
 }
 
-/* ---------- HIDDEN LETTER (ending "system leak" content) ---------- */
-
-.leaked-letter {
-  font-family: var(--font-ui);
-  font-size: 0.95rem;
-  letter-spacing: 0.04em;
-  line-height: 1.9;
-  color: var(--accent-warning-bright, #b04444);
-  opacity: 0.85;
-  white-space: pre-line;
-  max-width: 480px;
-}
-
-.leaked-letter-label {
-  font-family: var(--font-ui);
-  font-size: 0.7rem;
-  letter-spacing: 0.25em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-bottom: 0.8rem;
-  opacity: 0.6;
-}
-
-.modal-box-letter {
-  max-width: 480px;
-}
-
-/* ---------- CREDIT TITLE BLOCK ---------- */
-
-.credit-title-block {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  opacity: 0;
-  animation: beatIn 1.6s var(--ease-slow) forwards;
-}
-
-.credit-title-name {
-  font-size: clamp(1.6rem, 4vw, 2.2rem);
-  margin-bottom: 0.4rem;
-}
-
-.credit-role-line {
-  font-family: var(--font-ui);
-  font-size: 0.85rem;
-  letter-spacing: 0.1em;
-  color: var(--text-dim);
-}
-
-.credit-author {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 1.05rem;
-  color: var(--text-pale);
-  letter-spacing: 0.03em;
-}
-
-/* ---------- SECRET BUTTERFLY EPILOGUE ---------- */
-
-.credit-secret-epilogue {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.4rem;
-  opacity: 0;
-  animation: beatIn 1.4s var(--ease-slow) forwards;
-}
+/* ---------- REDUCED MOTION ---------- */
 
 @media (prefers-reduced-motion: reduce) {
   .narrative-text .beat,
@@ -588,10 +590,7 @@ body {
   .wing,
   .glitch-active,
   .npc-line,
-  .trust-indicator,
-  .cursor-trail-dot,
-  .credit-title-block,
-  .credit-secret-epilogue {
+  .trust-indicator {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
