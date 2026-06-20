@@ -153,12 +153,37 @@
     <div class="scene-content">
       <p class="narrative-text" id="credit-closing-line"></p>
       <p class="quote-line" id="credit-role-reveal" style="display:none;"></p>
+      <p class="leaked-letter" id="credit-hidden-letter" style="display:none;"></p>
+      <div class="credit-title-block" id="credit-title-block" style="display:none;">
+        <p class="title-mark credit-title-name">Butterfly of the Forgotten</p>
+        <p class="credit-role-line">Story &amp; Design</p>
+        <p class="credit-role-line credit-author">Aeranyra</p>
+        <p class="credit-role-line">Psychological Horror Visual Novel</p>
+        <p class="quote-line">"The academy remembers every name."</p>
+      </div>
       <nav class="menu-options" id="credit-return-options" style="display:none;">
+        <button class="menu-option" id="btn-read-letter">Read Hidden Letter Again</button>
         <button class="menu-option" id="btn-play-again">Play Again</button>
         <button class="menu-option" id="btn-return-title">Return to Title</button>
       </nav>
+      <div class="credit-secret-epilogue" id="credit-secret-epilogue" style="display:none;">
+        <p class="quote-line" id="secret-epilogue-text"></p>
+        <nav class="menu-options" id="secret-epilogue-options">
+          <button class="menu-option" id="btn-secret-remember">Remember</button>
+          <button class="menu-option" id="btn-secret-return">Return to Title</button>
+        </nav>
+      </div>
     </div>
   </section>
+
+  <!-- Hidden Letter Modal -->
+  <div class="modal-overlay" id="modal-hidden-letter">
+    <div class="modal-box modal-box-letter">
+      <p class="leaked-letter-label">[ unindexed fragment ]</p>
+      <p class="leaked-letter" id="hidden-letter-modal-text"></p>
+      <button class="modal-close" id="close-hidden-letter">Close</button>
+    </div>
+  </div>
 
 </div>
 
