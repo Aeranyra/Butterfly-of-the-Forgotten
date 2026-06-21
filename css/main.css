@@ -427,6 +427,23 @@ body {
   opacity: 0.65;
 }
 
+/* Permanently-settled glitch state: stays red/distorted indefinitely,
+   but slower and calmer than the active scramble — reads as "wrong
+   forever" rather than "actively breaking". */
+.glitch-active.glitch-persist {
+  animation: glitchShudder 1.8s steps(1, end) infinite, glitchFlicker 3.4s steps(1, end) infinite;
+  color: #ff3b3b;
+  text-shadow:
+    1.5px 0 rgba(255, 59, 59, 0.9),
+    -1.5px 0 rgba(255, 59, 59, 0.6),
+    0 0 10px rgba(255, 30, 30, 0.65),
+    0 0 22px rgba(255, 0, 0, 0.3);
+}
+
+.glitch-active.glitch-persist::before {
+  color: #ff3b3b;
+}
+
 
 /* ---------- PERSONALITY PROMPT NUMBER ---------- */
 
