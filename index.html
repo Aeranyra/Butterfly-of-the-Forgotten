@@ -179,12 +179,22 @@
     <div class="scene-content">
       <p class="narrative-text" id="credit-closing-line"></p>
       <p class="quote-line" id="credit-role-reveal" style="display:none;"></p>
+      <p class="narrative-text" id="credit-hidden-letter" style="display:none;"></p>
       <nav class="menu-options" id="credit-return-options" style="display:none;">
         <button class="menu-option" id="btn-play-again">Play Again</button>
         <button class="menu-option" id="btn-return-title">Return to Title</button>
+        <button class="menu-option" id="btn-read-letter">Read Hidden Letter Again</button>
       </nav>
     </div>
   </section>
+
+  <!-- Hidden Letter Modal -->
+  <div class="modal-overlay" id="modal-hidden-letter">
+    <div class="modal-box">
+      <p class="quote-line" id="hidden-letter-modal-text" style="color:#ff3b3b;"></p>
+      <button class="modal-close" id="close-hidden-letter">Close</button>
+    </div>
+  </div>
 
 </div>
 
