@@ -13,7 +13,7 @@
  */
 
 const firebaseConfig = {
-  apiKey: "-",
+  apiKey: "AIzaSyDkSIwzVhFrXnLUCfDzIStMmTtO4B97iac",
   authDomain: "butterfly-of-the-forgotten.firebaseapp.com",
   databaseURL: "https://butterfly-of-the-forgotten-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "butterfly-of-the-forgotten",
