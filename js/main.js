@@ -418,6 +418,7 @@
       await showLine('The sentence never finishes. No one explains who is teaching.', { meta: 'Lesson' });
 
       // ---- EVENT 4: QUIET QUESTION (first real choice) ----
+      await showLine('The sixth seat is still there. No one else seems to be counting.', { meta: 'Seating' });
       await runQuietQuestion();
 
       // ---- EXIT ----
@@ -436,35 +437,39 @@
     function runQuietQuestion() {
       return new Promise(resolve => {
         metaEl.textContent = 'Quiet Question';
-        textEl.innerHTML = '<span class="beat">Do you say something about the sixth seat?</span>';
+        textEl.innerHTML = '<span class="beat">The sixth seat is still there. No one else seems to be counting.</span>';
 
-        const options = [
-          { text: 'Ask the room', trustDelta: -3, flavor: 'No one answers. The silence sits there, awkward and total.' },
-          { text: 'Ask one person quietly', trustDelta: 0, flavor: 'They glance at the seat, then at you. Neither of you says more.' },
-          { text: 'Say nothing', trustDelta: 0, flavor: 'You let it go. The seat count stays wrong, unspoken.' }
-        ];
+        setTimeout(() => {
+          textEl.innerHTML = '<span class="beat">Do you say something about the sixth seat?</span>';
 
-        choiceContainer.style.display = 'flex';
-        choiceContainer.innerHTML = '';
+          const options = [
+            { text: 'Ask the room', trustDelta: -3, flavor: 'No one answers. The silence sits there, awkward and total.' },
+            { text: 'Ask one person quietly', trustDelta: 0, flavor: 'They glance at the seat, then at you. Neither of you says more.' },
+            { text: 'Say nothing', trustDelta: 0, flavor: 'You let it go. The seat count stays wrong, unspoken.' }
+          ];
 
-        options.forEach(opt => {
-          const btn = document.createElement('button');
-          btn.className = 'choice-btn';
-          btn.textContent = opt.text;
-          btn.addEventListener('click', async () => {
-            choiceContainer.style.display = 'none';
-            Trust.shift(opt.trustDelta);
-            if (opt.text === 'Say nothing') {
-              // Per locked design: no immediate effect, but Forgotten
-              // instability ticks up slightly faster later. Tracked here
-              // as a flag for future rooms to read.
-              Player.update({ saidNothingInClassroom: true });
-            }
-            await showLine(opt.flavor, { meta: 'Quiet Question' });
-            resolve();
-          }, { once: true });
-          choiceContainer.appendChild(btn);
-        });
+          choiceContainer.style.display = 'flex';
+          choiceContainer.innerHTML = '';
+
+          options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = opt.text;
+            btn.addEventListener('click', async () => {
+              choiceContainer.style.display = 'none';
+              Trust.shift(opt.trustDelta);
+              if (opt.text === 'Say nothing') {
+                // Per locked design: no immediate effect, but Forgotten
+                // instability ticks up slightly faster later. Tracked here
+                // as a flag for future rooms to read.
+                Player.update({ saidNothingInClassroom: true });
+              }
+              await showLine(opt.flavor, { meta: 'Quiet Question' });
+              resolve();
+            }, { once: true });
+            choiceContainer.appendChild(btn);
+          });
+        }, 1800);
       });
     }
 
@@ -544,6 +549,7 @@
       await showLine(LIGHT_SHIFT_REACTIONS[role] || LIGHT_SHIFT_REACTIONS.wanderer, { meta: 'Light Shift' });
 
       // ---- EVENT 2: MOVEMENT CHOICE ----
+      await showLine('The hallway splits in three directions, plus the one behind you.', { meta: 'Hallway' });
       await runMovementChoice();
       await showLine(MOVEMENT_ROLE_EFFECTS[role] || MOVEMENT_ROLE_EFFECTS.wanderer, { meta: 'Movement' });
 
@@ -594,35 +600,39 @@
     function runMovementChoice() {
       return new Promise(resolve => {
         metaEl.textContent = 'Movement';
-        textEl.innerHTML = '<span class="beat">Which direction feels correct?</span>';
+        textEl.innerHTML = '<span class="beat">The hallway splits in three directions, plus the one behind you.</span>';
 
-        // Per locked rule: ALL choices lead forward. Only the flavor text differs.
-        const options = [
-          { text: 'Left corridor', flavor: 'You go left. The hallway accepts it without comment.' },
-          { text: 'Right corridor', flavor: 'You go right. Nothing about it feels more or less correct than left would have.' },
-          { text: 'Forward', flavor: 'You go straight on. It\'s the only choice that doesn\'t feel like a choice.' },
-          { text: 'Stay still', flavor: 'You wait. Eventually the hallway moves instead — or you do, and don\'t notice.' }
-        ];
+        setTimeout(() => {
+          textEl.innerHTML = '<span class="beat">Which direction feels correct?</span>';
 
-        choiceContainer.style.display = 'flex';
-        choiceContainer.innerHTML = '';
+          // Per locked rule: ALL choices lead forward. Only the flavor text differs.
+          const options = [
+            { text: 'Left corridor', flavor: 'You go left. The hallway accepts it without comment.' },
+            { text: 'Right corridor', flavor: 'You go right. Nothing about it feels more or less correct than left would have.' },
+            { text: 'Forward', flavor: 'You go straight on. It\'s the only choice that doesn\'t feel like a choice.' },
+            { text: 'Stay still', flavor: 'You wait. Eventually the hallway moves instead — or you do, and don\'t notice.' }
+          ];
 
-        options.forEach(opt => {
-          const btn = document.createElement('button');
-          btn.className = 'choice-btn';
-          btn.textContent = opt.text;
-          btn.addEventListener('click', async () => {
-            choiceContainer.style.display = 'none';
-            // Per locked Sanity rule: choosing Stay still is a small,
-            // cautious sanity gain.
-            if (opt.text === 'Stay still') {
-              Player.update({ sanity: Math.min(100, Player.get().sanity + 2) });
-            }
-            await showLine(opt.flavor, { meta: 'Movement' });
-            resolve();
-          }, { once: true });
-          choiceContainer.appendChild(btn);
-        });
+          choiceContainer.style.display = 'flex';
+          choiceContainer.innerHTML = '';
+
+          options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = opt.text;
+            btn.addEventListener('click', async () => {
+              choiceContainer.style.display = 'none';
+              // Per locked Sanity rule: choosing Stay still is a small,
+              // cautious sanity gain.
+              if (opt.text === 'Stay still') {
+                Player.update({ sanity: Math.min(100, Player.get().sanity + 2) });
+              }
+              await showLine(opt.flavor, { meta: 'Movement' });
+              resolve();
+            }, { once: true });
+            choiceContainer.appendChild(btn);
+          });
+        }, 1800);
       });
     }
 
@@ -772,29 +782,33 @@
     function runFragmentChoice() {
       return new Promise(resolve => {
         metaEl.textContent = 'Fragment';
-        textEl.innerHTML = '<span class="beat">Do you tell the others what the book said?</span>';
+        textEl.innerHTML = '<span class="beat">The others are waiting to hear what the book said.</span>';
 
-        const options = [
-          { text: 'Tell them exactly what you read', trustDelta: 2, flavor: 'You say it plainly. No one challenges you. That, somehow, is worse.' },
-          { text: 'Tell a softened version', trustDelta: 0, flavor: 'You leave out the part that frightened you. It still shows on your face.' },
-          { text: 'Say you found nothing', trustDelta: -3, flavor: 'You lie. The book is still open on the table behind you.' }
-        ];
+        setTimeout(() => {
+          textEl.innerHTML = '<span class="beat">Do you tell them what you read?</span>';
 
-        choiceContainer.style.display = 'flex';
-        choiceContainer.innerHTML = '';
+          const options = [
+            { text: 'Tell them exactly what you read', trustDelta: 2, flavor: 'You say it plainly. No one challenges you. That, somehow, is worse.' },
+            { text: 'Tell a softened version', trustDelta: 0, flavor: 'You leave out the part that frightened you. It still shows on your face.' },
+            { text: 'Say you found nothing', trustDelta: -3, flavor: 'You lie. The book is still open on the table behind you.' }
+          ];
 
-        options.forEach(opt => {
-          const btn = document.createElement('button');
-          btn.className = 'choice-btn';
-          btn.textContent = opt.text;
-          btn.addEventListener('click', async () => {
-            choiceContainer.style.display = 'none';
-            Trust.shift(opt.trustDelta);
-            await showLine(opt.flavor, { meta: 'Fragment' });
-            resolve();
-          }, { once: true });
-          choiceContainer.appendChild(btn);
-        });
+          choiceContainer.style.display = 'flex';
+          choiceContainer.innerHTML = '';
+
+          options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = opt.text;
+            btn.addEventListener('click', async () => {
+              choiceContainer.style.display = 'none';
+              Trust.shift(opt.trustDelta);
+              await showLine(opt.flavor, { meta: 'Fragment' });
+              resolve();
+            }, { once: true });
+            choiceContainer.appendChild(btn);
+          });
+        }, 1800);
       });
     }
 
@@ -908,31 +922,35 @@
     function runFinalAlignment() {
       return new Promise(resolve => {
         metaEl.textContent = 'Final Alignment';
-        textEl.innerHTML = '<span class="beat">Choose what you believe is real.</span>';
+        textEl.innerHTML = '<span class="beat">The tower has gone quiet, waiting on something none of you said out loud.</span>';
 
-        const options = [
-          { text: 'The academy is real, and we are trapped here', sanityDelta: 2, flavor: 'Saying it steadies you, a little. At least it\'s a shape you can hold.' },
-          { text: 'None of this is real, and we will wake up', sanityDelta: -2, flavor: 'It feels true for a moment. Then the tower reminds you it isn\'t.' },
-          { text: 'I don\'t know, and I\'m done pretending I do', sanityDelta: 1, flavor: 'No one disagrees with you. That might be the most honest thing said all day.' }
-        ];
+        setTimeout(() => {
+          textEl.innerHTML = '<span class="beat">Choose what you believe is real.</span>';
 
-        choiceContainer.style.display = 'flex';
-        choiceContainer.innerHTML = '';
+          const options = [
+            { text: 'The academy is real, and we are trapped here', sanityDelta: 2, flavor: 'Saying it steadies you, a little. At least it\'s a shape you can hold.' },
+            { text: 'None of this is real, and we will wake up', sanityDelta: -2, flavor: 'It feels true for a moment. Then the tower reminds you it isn\'t.' },
+            { text: 'I don\'t know, and I\'m done pretending I do', sanityDelta: 1, flavor: 'No one disagrees with you. That might be the most honest thing said all day.' }
+          ];
 
-        options.forEach(opt => {
-          const btn = document.createElement('button');
-          btn.className = 'choice-btn';
-          btn.textContent = opt.text;
-          btn.addEventListener('click', async () => {
-            choiceContainer.style.display = 'none';
-            const current = Player.get().sanity;
-            Player.update({ sanity: Math.max(0, Math.min(100, current + opt.sanityDelta)) });
-            Player.update({ alignmentChoice: opt.text });
-            await showLine(opt.flavor, { meta: 'Final Alignment' });
-            resolve();
-          }, { once: true });
-          choiceContainer.appendChild(btn);
-        });
+          choiceContainer.style.display = 'flex';
+          choiceContainer.innerHTML = '';
+
+          options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = opt.text;
+            btn.addEventListener('click', async () => {
+              choiceContainer.style.display = 'none';
+              const current = Player.get().sanity;
+              Player.update({ sanity: Math.max(0, Math.min(100, current + opt.sanityDelta)) });
+              Player.update({ alignmentChoice: opt.text });
+              await showLine(opt.flavor, { meta: 'Final Alignment' });
+              resolve();
+            }, { once: true });
+            choiceContainer.appendChild(btn);
+          });
+        }, 1800);
       });
     }
 
@@ -1058,40 +1076,48 @@
       await showLine('The academy has decided what it remembers.', { meta: 'Final Gate', holdForClick: false });
       await wait(2200);
 
-      sceneEl.style.transition = 'opacity 1.6s ease';
-      sceneEl.style.opacity = '0';
+      sceneEl.classList.add('scene-fading-out');
       await wait(1700);
 
+      sceneEl.classList.remove('scene-fading-out');
       runEnding(endingKey);
-      sceneEl.style.transition = '';
-      sceneEl.style.opacity = '';
     }
 
     function runObserverDecision() {
       return new Promise(resolve => {
         metaEl.textContent = 'Observer Decision';
-        textEl.innerHTML = '<span class="beat">You are the anchor point. Choose.</span>';
+        textEl.innerHTML = '<span class="beat">The others are waiting on you. Whatever you choose, it ends this.</span>';
 
-        const options = ['Escape', 'Stay', 'Sacrifice'];
-        choiceContainer.style.display = 'flex';
-        choiceContainer.innerHTML = '';
+        setTimeout(() => {
+          textEl.innerHTML = '<span class="beat">You are the anchor point. Choose.</span>';
 
-        options.forEach(opt => {
-          const btn = document.createElement('button');
-          btn.className = 'choice-btn';
-          btn.textContent = opt;
-          btn.addEventListener('click', async () => {
-            choiceContainer.style.display = 'none';
-            const flavor = {
-              'Escape': 'The others go. You let them.',
-              'Stay': 'You remain. Someone has to remember this place correctly.',
-              'Sacrifice': 'They leave because you don\'t. You\'ve already decided that\'s fair.'
-            }[opt];
-            await showLine(flavor, { meta: 'Observer Decision' });
-            resolve(opt.toLowerCase());
-          }, { once: true });
-          choiceContainer.appendChild(btn);
-        });
+          const options = ['Escape', 'Stay', 'Sacrifice'];
+          choiceContainer.style.display = 'flex';
+          choiceContainer.innerHTML = '';
+
+          const descriptions = {
+            'Escape': 'Everyone who still can, leaves — you included.',
+            'Stay': 'You remain behind, as the one who remembers this place correctly.',
+            'Sacrifice': 'The others leave because you don\'t.'
+          };
+
+          options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = `${opt} — ${descriptions[opt]}`;
+            btn.addEventListener('click', async () => {
+              choiceContainer.style.display = 'none';
+              const flavor = {
+                'Escape': 'The others go. You let them.',
+                'Stay': 'You remain. Someone has to remember this place correctly.',
+                'Sacrifice': 'They leave because you don\'t. You\'ve already decided that\'s fair.'
+              }[opt];
+              await showLine(flavor, { meta: 'Observer Decision' });
+              resolve(opt.toLowerCase());
+            }, { once: true });
+            choiceContainer.appendChild(btn);
+          });
+        }, 1800);
       });
     }
 
@@ -1163,6 +1189,38 @@
     }
   };
 
+  // Hidden Letter: a "system leak" shown after the full Credit Scene,
+  // recasting the ending as a record the academy kept about the player
+  // rather than something that simply happened to them.
+  const HIDDEN_LETTER_CONTENT = {
+    trueEnding: [
+      'We tested multiple versions of your exit.',
+      'Only one version believes it succeeded.',
+      'We are not sure which one you are.'
+    ],
+    betrayalEnding: [
+      'We did not assign a traitor.',
+      'We assigned probability of trust collapse.',
+      'You all fulfilled it differently.'
+    ],
+    forgottenEnding: [
+      'A student remained after classification ended.',
+      'We continued without updating your status.',
+      'You still exist in unlabelled storage.'
+    ],
+    observerEnding: [
+      'Observers are not released.',
+      'They are relocated between interpretations.',
+      'You will be watching again soon.'
+    ],
+    secretButterfly: [
+      'We stopped separating player from outcome.',
+      'Everything you did was already stored as past behavior.',
+      'The academy is not remembering you.',
+      'It is replaying you.'
+    ]
+  };
+
   function runEnding(endingKey) {
     const content = ENDING_CONTENT[endingKey] || ENDING_CONTENT.forgottenEnding;
     goToScene('scene-ending');
@@ -1194,11 +1252,21 @@
     const creditScene = document.getElementById('scene-credits-final');
     const closingLineEl = document.getElementById('credit-closing-line');
     const roleRevealEl = document.getElementById('credit-role-reveal');
+    const hiddenLetterEl = document.getElementById('credit-hidden-letter');
     const returnOptions = document.getElementById('credit-return-options');
+    const readLetterBtn = document.getElementById('btn-read-letter');
+    const letterModal = document.getElementById('modal-hidden-letter');
+    const letterModalText = document.getElementById('hidden-letter-modal-text');
 
     closingLineEl.textContent = '';
     roleRevealEl.style.display = 'none';
+    hiddenLetterEl.style.display = 'none';
+    hiddenLetterEl.textContent = '';
     returnOptions.style.display = 'none';
+    if (readLetterBtn) readLetterBtn.style.display = 'none';
+
+    const letterLines = HIDDEN_LETTER_CONTENT[endingKey];
+    const fullLetterText = letterLines ? letterLines.join(' ') : '';
 
     // Beat 1: silence (2-3s, handled by the delay before this function runs
     // plus this initial pause) — fade audio out
@@ -1235,6 +1303,51 @@
       returnOptions.style.transition = 'opacity 1.5s ease';
       requestAnimationFrame(() => { returnOptions.style.opacity = '1'; });
     }, 10500);
+
+    setTimeout(() => {
+      // Beat 6: Hidden Letter — a "system leak" that arrives only after
+      // everything else has resolved. Glitched and left permanently
+      // distorted (red), per locked design: the academy recasting the
+      // ending as a record it kept, not something that simply happened.
+      if (!letterLines) return;
+
+      hiddenLetterEl.style.display = 'block';
+      hiddenLetterEl.textContent = letterLines[0];
+      GlitchDialogue.render(hiddenLetterEl, letterLines[0], Player.get().sanity, { persist: true });
+
+      let i = 1;
+      const revealNext = () => {
+        if (i >= letterLines.length) {
+          // Once fully revealed, surface the replay button so the player
+          // can read the whole letter again without re-triggering the beat.
+          if (readLetterBtn) {
+            readLetterBtn.style.display = 'inline-block';
+            readLetterBtn.style.opacity = '0';
+            readLetterBtn.style.transition = 'opacity 1s ease';
+            requestAnimationFrame(() => { readLetterBtn.style.opacity = '1'; });
+          }
+          return;
+        }
+        hiddenLetterEl.textContent += ' ' + letterLines[i];
+        GlitchDialogue.render(hiddenLetterEl, hiddenLetterEl.textContent, Player.get().sanity, { persist: true });
+        i++;
+        setTimeout(revealNext, 1800);
+      };
+      setTimeout(revealNext, 1800);
+    }, 13000);
+
+    if (readLetterBtn && letterModal && letterModalText) {
+      readLetterBtn.onclick = () => {
+        letterModalText.textContent = fullLetterText;
+        letterModal.classList.add('active');
+      };
+    }
+    if (letterModal) {
+      const closeLetterBtn = document.getElementById('close-hidden-letter');
+      if (closeLetterBtn) {
+        closeLetterBtn.onclick = () => letterModal.classList.remove('active');
+      }
+    }
 
     document.getElementById('btn-play-again').onclick = () => {
       window.location.reload();
