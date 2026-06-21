@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Butterfly of the Forgotten</title>
+<link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ TITLE SCREEN ============ -->
+  <section class="scene active" id="scene-title">
+    <div class="scene-bg" style="background-image:url('https://files.catbox.moe/3726jk.jpg')"></div>
+    <div class="scene-content">
+      <h1 class="title-mark">Butterfly of the Forgotten</h1>
+      <p class="quote-line">"The academy remembers every name."</p>
+      <nav class="menu-options">
+        <button class="menu-option" id="btn-start">Start</button>
+        <button class="menu-option" id="btn-how-to-play">How to Play</button>
+        <button class="menu-option" id="btn-credits">Credits</button>
+      </nav>
+    </div>
+    <div class="click-to-begin" id="click-to-begin">Click anywhere to begin</div>
+  </section>
+
+  <!-- How to Play Modal -->
+  <div class="modal-overlay" id="modal-how-to-play">
+    <div class="modal-box">
+      <p class="quote-line">Explore the academy.</p>
+      <p class="quote-line">Make choices carefully.</p>
+      <p class="quote-line">Protect your sanity.</p>
+      <p class="quote-line">Some truths are better left forgotten.</p>
+      <button class="modal-close" id="close-how-to-play">Close</button>
+    </div>
+  </div>
+
+  <!-- Credits Modal -->
+  <div class="modal-overlay" id="modal-credits">
+    <div class="modal-box">
+      <p class="quote-line">A game about forgetting, and what remains.</p>
+      <button class="modal-close" id="close-credits">Close</button>
+    </div>
+  </div>
+
+  <!-- ============ PROLOGUE ============ -->
+  <section class="scene" id="scene-prologue">
+    <div class="scene-bg" style="background-image:url('https://files.catbox.moe/pej4lf.jpg')"></div>
+    <div class="scene-content">
+      <p class="narrative-text" id="prologue-text"></p>
+      <button class="menu-option" id="btn-prologue-continue" style="display:none;">Continue</button>
+    </div>
+    <div class="click-to-begin" id="prologue-tap-hint">Click to continue</div>
+  </section>
+
+  <!-- ============ PERSONALITY TEST ============ -->
+  <section class="scene" id="scene-personality">
+    <div class="scene-bg" style="background-image:url('https://files.catbox.moe/f5c8uy.jpg')"></div>
+    <div class="scene-content">
+      <span class="prompt-meta" id="prompt-meta">Prompt 1 / 3</span>
+      <p class="narrative-text" id="prompt-text"></p>
+      <div class="choice-list" id="prompt-choices"></div>
+    </div>
+  </section>
+
+  <!-- ============ NAME INPUT ============ -->
+  <section class="scene" id="scene-name-input">
+    <div class="scene-bg" style="background-image:url('https://files.catbox.moe/kzyy85.jpg')"></div>
+    <div class="scene-content">
+      <p class="quote-line">"What do they call you?"</p>
+      <input type="text" class="name-input-field" id="name-field" placeholder="Type your name..." maxlength="20">
+      <button class="menu-option" id="btn-name-continue">Confirm</button>
+    </div>
+  </section>
+
+  <!-- ============ SESSION LOBBY ============ -->
+  <section class="scene" id="scene-lobby">
+    <div class="scene-bg" style="background-image:url('https://files.catbox.moe/kzyy85.jpg')"></div>
+    <div class="scene-content" id="lobby-choice-content">
+      <p class="quote-line">How do you enter the academy?</p>
+      <div class="menu-options">
+        <button class="menu-option" id="btn-lobby-create">Begin a new session</button>
+        <button class="menu-option" id="btn-lobby-join">Join with a code</button>
+      </div>
+    </div>
+
+    <div class="scene-content" id="lobby-join-content" style="display:none;">
+      <p class="quote-line">Enter the code shared with you.</p>
+      <input type="text" class="lobby-code-input" id="lobby-code-field" placeholder="CODE" maxlength="5">
+      <button class="menu-option" id="btn-lobby-join-confirm">Enter</button>
+    </div>
+
+    <div class="scene-content" id="lobby-waiting-content" style="display:none;">
+      <p class="quote-line">"The academy is waiting for the others to arrive."</p>
+      <div class="lobby-code-display" id="lobby-code-display"></div>
+      <p class="lobby-count" id="lobby-count">1 / 5 have arrived</p>
+    </div>
+
+    <p class="lobby-error" id="lobby-error" style="position:absolute; bottom:8%; left:0; right:0; text-align:center;"></p>
+  </section>
+
+  <!-- ============ CLASSROOM ============ -->
+  <section class="scene room-scene" id="scene-classroom">
+    <div class="scene-bg" style="background-image:url('https://files.catbox.moe/5rzhzb.jpg')"></div>
+    <div class="trust-indicator"></div>
+    <div class="scene-content">
+      <span class="room-event-meta" id="classroom-event-meta">Classroom</span>
+      <p class="narrative-text" id="classroom-text"></p>
+      <div class="npc-zone"></div>
+      <div class="choice-list" id="classroom-choices" style="display:none;"></div>
+    </div>
+    <div class="click-to-begin" id="classroom-tap-hint">Click to continue</div>
+  </section>
+
+  <!-- ============ HALLWAY ============ -->
+  <section class="scene room-scene" id="scene-hallway">
+    <div class="scene-bg" style="background-image:url('https://files.catbox.moe/xgx0jd.jpg')"></div>
+    <div class="trust-indicator"></div>
+    <div class="scene-content">
+      <span class="room-event-meta" id="hallway-event-meta">Hallway</span>
+      <p class="narrative-text" id="hallway-text"></p>
+      <div class="npc-zone"></div>
+      <div class="choice-list" id="hallway-choices" style="display:none;"></div>
+    </div>
+    <div class="click-to-begin" id="hallway-tap-hint">Click to continue</div>
+  </section>
+
+  <!-- ============ LIBRARY ============ -->
+  <section class="scene room-scene" id="scene-library">
+    <div class="scene-bg" style="background-image:url('https://files.catbox.moe/m3gtw6.jpg')"></div>
+    <div class="trust-indicator"></div>
+    <div class="scene-content">
+      <span class="room-event-meta" id="library-event-meta">Library</span>
+      <p class="narrative-text" id="library-text"></p>
+      <div class="npc-zone"></div>
+      <div class="choice-list" id="library-choices" style="display:none;"></div>
+    </div>
+    <div class="click-to-begin" id="library-tap-hint">Click to continue</div>
+  </section>
+
+  <!-- ============ CLOCK TOWER ============ -->
+  <section class="scene room-scene" id="scene-clocktower">
+    <div class="scene-bg" style="background-image:url('https://files.catbox.moe/bgq2qf.jpg')"></div>
+    <div class="trust-indicator"></div>
+    <div class="scene-content">
+      <span class="room-event-meta" id="clocktower-event-meta">Clock Tower</span>
+      <p class="narrative-text" id="clocktower-text"></p>
+      <div class="npc-zone"></div>
+      <div class="choice-list" id="clocktower-choices" style="display:none;"></div>
+    </div>
+    <div class="click-to-begin" id="clocktower-tap-hint">Click to continue</div>
+  </section>
+
+  <!-- ============ FINAL GATE ============ -->
+  <!-- Distinct layout per locked spec: no trust indicator, no NPC zone -->
+  <!-- (Final Gate is deliberately NPC-free and starker than other rooms) -->
+  <section class="scene" id="scene-finalgate">
+    <div class="scene-bg" style="background-image:url('https://files.catbox.moe/yw97ze.jpg')"></div>
+    <div class="scene-content" style="max-width:600px;">
+      <span class="room-event-meta" id="finalgate-event-meta">Final Gate</span>
+      <p class="narrative-text" id="finalgate-text"></p>
+      <div class="choice-list" id="finalgate-choices" style="display:none;"></div>
+    </div>
+    <div class="click-to-begin" id="finalgate-tap-hint">Click to continue</div>
+  </section>
+
+  <!-- ============ ENDINGS ============ -->
+  <section class="scene" id="scene-ending">
+    <div class="scene-bg" id="ending-bg"></div>
+    <div class="scene-content">
+      <p class="quote-line" id="ending-title"></p>
+      <p class="narrative-text" id="ending-text"></p>
+    </div>
+  </section>
+
+  <!-- ============ CREDIT SCENE ============ -->
+  <section class="scene" id="scene-credits-final">
+    <div class="scene-content">
+      <p class="narrative-text" id="credit-closing-line"></p>
+      <p class="quote-line" id="credit-role-reveal" style="display:none;"></p>
+      <p class="narrative-text" id="credit-hidden-letter" style="display:none;"></p>
+      <nav class="menu-options" id="credit-return-options" style="display:none;">
+        <button class="menu-option" id="btn-play-again">Play Again</button>
+        <button class="menu-option" id="btn-return-title">Return to Title</button>
+        <button class="menu-option" id="btn-read-letter">Read Hidden Letter Again</button>
+      </nav>
+    </div>
+  </section>
+
+  <!-- Hidden Letter Modal -->
+  <div class="modal-overlay" id="modal-hidden-letter">
+    <div class="modal-box">
+      <p class="quote-line" id="hidden-letter-modal-text" style="color:#ff3b3b;"></p>
+      <button class="modal-close" id="close-hidden-letter">Close</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="js/firebase.js"></script>
+<script src="js/state.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/trust.js"></script>
+<script src="js/butterfly.js"></script>
+<script src="js/glitch.js"></script>
+<script src="js/npc.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
