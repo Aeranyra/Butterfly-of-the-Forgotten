@@ -1539,17 +1539,26 @@
           console.error('onUpdate error:', e);
         }
       });
+
+      // Force an immediate count read so players who join after others
+      // already joined see the correct current count right away, rather
+      // than waiting for the next Firebase event to fire.
+      Session.getPlayerCount().then(count => {
+        if (count > 0) countEl.textContent = `${count} / 5 have arrived`;
+      });
     }
 
     async function beginSynchronizedEntry() {
       if (stopButterflies) stopButterflies();
       await Session.setPlayerData({ name: Player.get().name });
 
+      // Mark session as started immediately so latecomers get a clear
+      // rejection instead of joining a game that's already in progress
+      await Session.markStarted();
+
       waitingContent.innerHTML = '<p class="narrative-text"><span class="beat">Five chairs were always going to be filled.</span></p>';
       await new Promise(r => setTimeout(r, 2600));
 
-      // Role assignment now happens through the real session rather than
-      // the solo weighted-random placeholder — see assignRolesIfHost().
       await assignRolesIfHost();
 
       Trust.init();
@@ -1632,9 +1641,11 @@
 
       const result = await Session.join(code);
       if (!result.ok) {
-        showError(result.reason === 'full'
-          ? 'That session already has five. The academy will not allow more.'
-          : 'No such session. Check the code and try again.');
+        showError(
+          result.reason === 'full' ? 'That session already has five. The academy will not allow more.' :
+          result.reason === 'started' ? 'That session has already begun. The academy does not allow late arrivals.' :
+          'No such session. Check the code and try again.'
+        );
         return;
       }
       enterWaitingRoom(Session.getCode());

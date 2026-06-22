@@ -106,7 +106,7 @@ const Session = (() => {
 
   /**
    * Joins an existing session by code. Returns false if the session
-   * doesn't exist or is already full (5 players, per locked design).
+   * doesn't exist, is already full, or has already started.
    */
   async function join(code) {
     await init();
@@ -119,6 +119,12 @@ const Session = (() => {
     }
 
     const data = snapshot.val();
+
+    // Block joining a session that already started
+    if (data.started) {
+      return { ok: false, reason: 'started' };
+    }
+
     const currentPlayers = data.players ? Object.keys(data.players).length : 0;
     if (currentPlayers >= 5) {
       return { ok: false, reason: 'full' };
@@ -185,6 +191,15 @@ const Session = (() => {
     });
   }
 
+  /**
+   * Marks the session as started so latecomers can't join mid-game.
+   * Called by beginSynchronizedEntry() once all 5 are present.
+   */
+  function markStarted() {
+    if (!sessionRef) return Promise.resolve();
+    return sessionRef.child('started').set(true);
+  }
+
   async function getPlayerCount() {
     if (!sessionRef) return 0;
     const snapshot = await sessionRef.child('players').once('value');
@@ -199,6 +214,7 @@ const Session = (() => {
     onUpdate,
     setPlayerData,
     shiftTrust,
+    markStarted,
     getPlayerCount
   };
 })();
