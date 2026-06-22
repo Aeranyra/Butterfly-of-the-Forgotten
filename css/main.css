@@ -288,6 +288,19 @@ body {
   filter: drop-shadow(0 0 5px rgba(10, 9, 12, 0.7));
 }
 
+/* Fading breadcrumb dots left behind as the cursor butterfly moves —
+   each one is positioned once, then fades and shrinks via transition. */
+.butterfly-cursor-trail {
+  width: 14px;
+  height: 14px;
+  position: absolute;
+  z-index: 4;
+  opacity: 0.6;
+  transform: translate(-50%, -50%) scale(1);
+  transition: opacity 0.85s var(--ease-slow), transform 0.85s var(--ease-slow);
+  pointer-events: none;
+}
+
 .wing {
   animation: wingFlap 0.32s ease-in-out infinite alternate;
   transform-origin: center;
