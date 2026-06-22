@@ -98,7 +98,7 @@
   function startCursorTrail() {
     if (stopCursorTrail) return;
     const app = document.getElementById('app');
-    stopCursorTrail = Butterfly.cursorTrail(app, { variant: 'black' });
+    stopCursorTrail = Butterfly.cursorTrail(app);
   }
 
   // ====================================================================
@@ -736,9 +736,9 @@
       await wait(1300);
 
       sceneEl.classList.remove('scene-fading-out');
-      goToScene('scene-clocktower');
-      AudioManager.play('clockTower');
-      runClockTower();
+      goToScene('scene-convergence');
+      AudioManager.play('library');
+      runConvergence();
     }
 
     function runObserverChoice() {
@@ -809,6 +809,115 @@
             choiceContainer.appendChild(btn);
           });
         }, 1800);
+      });
+    }
+
+    sequence();
+  }
+
+  // ====================================================================
+  // THE CONVERGENCE
+  // New shared-question scene: all 5 players answer the same question
+  // privately, then see how the group split (counts only, never who chose
+  // what — preserves role/identity secrecy). Majority alignment here is
+  // now a real requirement for the True Escape Ending, not just a sanity
+  // threshold check.
+  // ====================================================================
+  function runConvergence() {
+    const textEl = document.getElementById('convergence-text');
+    const metaEl = document.getElementById('convergence-event-meta');
+    const sceneEl = document.getElementById('scene-convergence');
+    const tapHint = document.getElementById('convergence-tap-hint');
+    const choiceContainer = document.getElementById('convergence-choices');
+
+    let awaitingClick = false;
+
+    function showLine(text, { meta, holdForClick = true } = {}) {
+      return new Promise(resolve => {
+        if (meta) metaEl.textContent = meta;
+        textEl.innerHTML = `<span class="beat">${text}</span>`;
+        if (!holdForClick) { resolve(); return; }
+        awaitingClick = true;
+        tapHint.style.display = 'block';
+        const onAdvance = () => {
+          if (!awaitingClick) return;
+          awaitingClick = false;
+          tapHint.style.display = 'none';
+          sceneEl.removeEventListener('click', onAdvance);
+          resolve();
+        };
+        sceneEl.addEventListener('click', onAdvance);
+      });
+    }
+
+    function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    async function sequence() {
+      await showLine('The academy gathers all five of you in the same breath, for the first time.', { meta: 'Convergence' });
+      await showLine('A single question, asked of everyone at once.', { meta: 'Convergence' });
+
+      const answer = await runSharedQuestion();
+
+      // Solo-test note: real cross-player tallying needs all 5 sessions
+      // synced through Firebase. Here, the "group" result is approximated
+      // from the player's own answer plus a weighted random spread, just
+      // enough to demonstrate the majority/split mechanic until live
+      // 5-player tallying is wired in.
+      const simulatedGroup = [answer];
+      for (let i = 0; i < 4; i++) {
+        const pool = ['leave', 'stay', 'unsure'];
+        simulatedGroup.push(pool[Math.floor(Math.random() * pool.length)]);
+      }
+      const counts = simulatedGroup.reduce((acc, a) => { acc[a] = (acc[a] || 0) + 1; return acc; }, {});
+      const majorityCount = Math.max(...Object.values(counts));
+      const majorityReached = majorityCount >= 3; // 3 of 5 = real majority
+
+      Player.update({ convergenceMajorityReached: majorityReached });
+      Trust.shift(majorityReached ? 5 : -3);
+
+      await showLine(`${majorityCount} of you answered the same way.`, { meta: 'Convergence' });
+      await showLine(
+        majorityReached
+          ? 'For once, the academy has nothing to distort. You agreed.'
+          : 'No answer rises above the others. The academy notes this carefully.',
+        { meta: 'Convergence', holdForClick: false }
+      );
+      await wait(2200);
+
+      sceneEl.classList.add('scene-fading-out');
+      await wait(1300);
+
+      sceneEl.classList.remove('scene-fading-out');
+      goToScene('scene-clocktower');
+      AudioManager.play('clockTower');
+      runClockTower();
+    }
+
+    function runSharedQuestion() {
+      return new Promise(resolve => {
+        metaEl.textContent = 'The Question';
+        textEl.innerHTML = '<span class="beat">"If the gate opened right now — would you walk through it?"</span>';
+
+        const options = [
+          { value: 'leave', text: 'Yes. Whatever is on the other side.', flavor: 'You answer before you can think better of it.' },
+          { value: 'stay', text: 'No. Not yet.', flavor: 'You hold the answer back, even from yourself.' },
+          { value: 'unsure', text: 'I don\'t know what I\'d be leaving.', flavor: 'The honest answer. The academy seems to prefer it.' }
+        ];
+
+        choiceContainer.style.display = 'flex';
+        choiceContainer.innerHTML = '';
+
+        options.forEach(opt => {
+          const btn = document.createElement('button');
+          btn.className = 'choice-btn';
+          btn.textContent = opt.text;
+          btn.addEventListener('click', async () => {
+            choiceContainer.style.display = 'none';
+            await showLine(opt.flavor, { meta: 'The Question' });
+            resolve(opt.value);
+          }, { once: true });
+          choiceContainer.appendChild(btn);
+        });
       });
     }
 
@@ -1143,11 +1252,17 @@
     // Observer ending — their own decision shapes the close, if they made one
     if (role === 'observer' && observerChoice) return 'observerEnding';
 
-    // True Escape — the default positive-leaning outcome
-    if (tier === 'stable') return 'trueEnding';
+    // True Escape — now a real achievement, not just a sanity floor.
+    // Requires Stable sanity AND high trust AND that the group actually
+    // reached majority alignment at the Convergence. Previously this
+    // only checked sanity tier, making it the easiest ending to reach
+    // despite being framed as the hardest.
+    const convergenceMajorityReached = Player.get().convergenceMajorityReached === true;
+    if (tier === 'stable' && trust >= 75 && convergenceMajorityReached) return 'trueEnding';
 
     // Fallback for ambiguous middle states (e.g. Distorted sanity, trust
-    // neither collapsed nor high, no Observer decision available)
+    // neither collapsed nor high enough, no Observer decision available,
+    // or Stable sanity without real group alignment)
     return role === 'observer' ? 'observerEnding' : 'forgottenEnding';
   }
 

@@ -104,12 +104,14 @@ const AudioManager = (() => {
   /**
    * Static overlay for the Glitch Dialogue System.
    * Plays a short static burst under a line, intensity 0-1.
+   * Raised the audible floor so even low-intensity (Stable tier) glitches
+   * are clearly heard rather than nearly silent.
    */
   function playStatic(intensity = 0.3) {
     // Lightweight noise burst using Web Audio API — no extra asset needed.
     try {
       const ctx = playStatic._ctx || (playStatic._ctx = new (window.AudioContext || window.webkitAudioContext)());
-      const bufferSize = ctx.sampleRate * 0.4; // 400ms burst
+      const bufferSize = ctx.sampleRate * 0.25; // short burst, meant to repeat per pulse
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) {
@@ -118,7 +120,9 @@ const AudioManager = (() => {
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       const gain = ctx.createGain();
-      gain.gain.value = intensity * 0.4;
+      // Floor of 0.25 so quiet (Stable-tier) glitches are still clearly
+      // audible, scaling up to louder at higher intensity.
+      gain.gain.value = 0.25 + intensity * 0.45;
       source.connect(gain);
       gain.connect(ctx.destination);
       source.start();

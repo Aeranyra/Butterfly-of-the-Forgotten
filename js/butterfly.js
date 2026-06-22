@@ -70,26 +70,56 @@ const Butterfly = (() => {
     return () => clearInterval(id);
   }
 
+  // Cursor trail color cycle — reuses the game's existing palette so it
+  // never feels off-brand, just more alive than a single fixed color.
+  const CURSOR_TRAIL_COLORS = [
+    { wingOuter: '#9b85b0', wingInner: '#6b5b7a', vein: '#3a3340' }, // violet (default)
+    { wingOuter: '#b04444', wingInner: '#7a2e2e', vein: '#3a1f1f' }, // warning red
+    { wingOuter: '#e8e6e0', wingInner: '#c9c6c0', vein: '#8a8790' }, // pale
+    { wingOuter: '#15131a', wingInner: '#0a090c', vein: '#6b5b7a' }  // black
+  ];
+
+  function _coloredSvg(colors) {
+    return `
+    <svg viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
+      <g>
+        <path class="wing" d="M13 13 C8 4, 1 4, 2 11 C2.5 15, 8 15, 13 13 Z" fill="${colors.wingOuter}" opacity="0.9"/>
+        <path class="wing" d="M13 13 C18 4, 25 4, 24 11 C23.5 15, 18 15, 13 13 Z" fill="${colors.wingOuter}" opacity="0.9"/>
+        <path class="wing" d="M13 13 C9 19, 4 20, 5 15.5 C5.5 13.5, 9 13, 13 13 Z" fill="${colors.wingInner}" opacity="0.82"/>
+        <path class="wing" d="M13 13 C17 19, 22 20, 21 15.5 C20.5 13.5, 17 13, 13 13 Z" fill="${colors.wingInner}" opacity="0.82"/>
+        <line x1="13" y1="9" x2="13" y2="17" stroke="${colors.vein}" stroke-width="0.8"/>
+      </g>
+    </svg>`;
+  }
+
   /**
-   * Cursor trail — a small black butterfly that follows the mouse/touch
-   * with a light lag, fading as it settles. Subtle by design: this is
-   * meant to feel like something following the player, not a flashy
-   * cursor effect, so it stays low-opacity and slow.
+   * Cursor trail — a small butterfly that follows the mouse/touch with a
+   * light lag, leaving a brief fading trail of color-cycling copies behind
+   * it as it moves. More noticeable than a single static-color follower:
+   * cycles through the game's palette and leaves visible breadcrumbs.
    * Returns a stop function that removes the trail and its listeners.
    */
-  function cursorTrail(container, { variant = 'black' } = {}) {
-    const markup = variant === 'black' ? SVG_MARKUP_BLACK : SVG_MARKUP_VIOLET;
-    const el = document.createElement('div');
-    el.className = 'butterfly butterfly-cursor';
-    el.innerHTML = markup;
-    el.style.animation = 'none';
-    el.style.opacity = '0';
-    container.appendChild(el);
+  function cursorTrail(container, { variant = null } = {}) {
+    const leadEl = document.createElement('div');
+    leadEl.className = 'butterfly butterfly-cursor';
+    leadEl.style.animation = 'none';
+    leadEl.style.opacity = '0';
+    container.appendChild(leadEl);
 
     let targetX = -100, targetY = -100;
     let curX = -100, curY = -100;
     let raf = null;
     let active = false;
+    let colorIndex = 0;
+    let frameCount = 0;
+    let lastTrailX = -100, lastTrailY = -100;
+
+    function currentColors() {
+      // If a fixed variant was requested, stick to it; otherwise cycle.
+      if (variant === 'black') return CURSOR_TRAIL_COLORS[3];
+      if (variant === 'violet') return CURSOR_TRAIL_COLORS[0];
+      return CURSOR_TRAIL_COLORS[colorIndex];
+    }
 
     function onMove(e) {
       const point = e.touches ? e.touches[0] : e;
@@ -99,18 +129,47 @@ const Butterfly = (() => {
       targetY = point.clientY - rect.top;
       if (!active) {
         active = true;
-        el.style.opacity = '0.55';
+        leadEl.style.opacity = '0.85';
       }
     }
 
+    function spawnTrailDot(x, y) {
+      const dot = document.createElement('div');
+      dot.className = 'butterfly butterfly-cursor-trail';
+      dot.innerHTML = _coloredSvg(currentColors());
+      dot.style.left = `${x}px`;
+      dot.style.top = `${y}px`;
+      container.appendChild(dot);
+      requestAnimationFrame(() => {
+        dot.style.opacity = '0';
+        dot.style.transform = 'translate(-50%, -50%) scale(0.4)';
+      });
+      setTimeout(() => dot.remove(), 900);
+    }
+
     function tick() {
-      // Lagging follow — ~8% of the distance per frame, so the
-      // butterfly trails a beat behind rather than snapping to the cursor.
-      curX += (targetX - curX) * 0.08;
-      curY += (targetY - curY) * 0.08;
-      el.style.left = `${curX}px`;
-      el.style.top = `${curY}px`;
-      el.style.transform = `translate(-50%, -60%)`;
+      // Lagging follow — ~10% of the distance per frame.
+      curX += (targetX - curX) * 0.1;
+      curY += (targetY - curY) * 0.1;
+      leadEl.style.left = `${curX}px`;
+      leadEl.style.top = `${curY}px`;
+      leadEl.style.transform = `translate(-50%, -60%)`;
+      leadEl.innerHTML = _coloredSvg(currentColors());
+
+      frameCount++;
+      // Cycle color roughly twice a second
+      if (variant === null && frameCount % 30 === 0) {
+        colorIndex = (colorIndex + 1) % CURSOR_TRAIL_COLORS.length;
+      }
+
+      // Drop a fading trail dot every few frames, only while actually moving
+      const moved = Math.hypot(curX - lastTrailX, curY - lastTrailY);
+      if (active && moved > 14) {
+        spawnTrailDot(curX, curY);
+        lastTrailX = curX;
+        lastTrailY = curY;
+      }
+
       raf = requestAnimationFrame(tick);
     }
 
@@ -122,7 +181,8 @@ const Butterfly = (() => {
       cancelAnimationFrame(raf);
       container.removeEventListener('mousemove', onMove);
       container.removeEventListener('touchmove', onMove);
-      el.remove();
+      leadEl.remove();
+      container.querySelectorAll('.butterfly-cursor-trail').forEach(d => d.remove());
     };
   }
 

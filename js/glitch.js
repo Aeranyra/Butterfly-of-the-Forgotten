@@ -46,14 +46,15 @@ const GlitchDialogue = (() => {
     el.classList.add('glitch-active');
     if (tier === 'lost' || persist) el.classList.add('intensity-lost');
 
-    AudioManager.playStatic(intensity);
-
     const pulses = tier === 'stable' ? 3 : tier === 'distorted' ? 6 : 10;
     const pulseSpeed = tier === 'lost' ? 55 : 90;
+
+    AudioManager.playStatic(intensity);
 
     let i = 0;
     const interval = setInterval(() => {
       _scrambleOnce(el, text, intensity);
+      AudioManager.playStatic(intensity);
       i++;
       if (i >= pulses) {
         clearInterval(interval);
