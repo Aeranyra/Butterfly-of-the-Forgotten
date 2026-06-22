@@ -43,5 +43,17 @@ const Trust = (() => {
     _render();
   }
 
-  return { get, shift, init };
+  /**
+   * Called by the Firebase onUpdate listener whenever the shared trust
+   * value changes in the database. Syncs the local indicator to the
+   * real group-wide value without triggering another Firebase write.
+   */
+  function syncFromRemote(remoteValue) {
+    if (remoteValue === null || remoteValue === undefined) return;
+    value = Math.max(0, Math.min(100, remoteValue));
+    GameState.saveState('trust', value);
+    _render();
+  }
+
+  return { get, shift, init, syncFromRemote };
 })();

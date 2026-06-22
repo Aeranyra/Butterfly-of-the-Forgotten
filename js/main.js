@@ -1525,22 +1525,18 @@
       waitingContent.appendChild(soloSkip);
 
       Session.onUpdate(session => {
-        if (!session) return;
-        // This subscription stays alive for the rest of the game (it's
-        // never unsubscribed), so it doubles as the live trust sync for
-        // every room — not just the lobby. Whenever ANY player's choice
-        // shifts trust, every player's indicator reconciles to it here,
-        // in real time, regardless of which scene they're currently in.
-        Trust.syncFromRemote(session.trust);
-
-        if (!session.players) return;
-        const count = Object.keys(session.players).length;
-        countEl.textContent = `${count} / 5 have arrived`;
-
-        // Per locked design: cannot proceed until exactly 5 are present
-        if (count >= 5 && !entryStarted) {
-          entryStarted = true;
-          beginSynchronizedEntry();
+        try {
+          if (!session) return;
+          if (session.trust !== undefined) Trust.syncFromRemote(session.trust);
+          if (!session.players) return;
+          const count = Object.keys(session.players).length;
+          countEl.textContent = `${count} / 5 have arrived`;
+          if (count >= 5 && !entryStarted) {
+            entryStarted = true;
+            beginSynchronizedEntry();
+          }
+        } catch (e) {
+          console.error('onUpdate error:', e);
         }
       });
     }
