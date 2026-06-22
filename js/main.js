@@ -1240,29 +1240,38 @@
   // ====================================================================
 
   function calculateEnding({ tier, trust, role, observerChoice, butterflyConditionMet, groupTrustCollapse }) {
-    // Secret Butterfly Ending takes priority — full truth completion
+    // Secret Butterfly Ending — rarest of all, full truth completion
     if (butterflyConditionMet) return 'secretButterfly';
 
-    // Forgotten identity collapse
+    // Forgotten identity collapse — sanity fully gone
     if (tier === 'lost') return 'forgottenEnding';
 
-    // Betrayal ending — trust collapse path
-    if (groupTrustCollapse) return 'betrayalEnding';
+    // Betrayal ending — trust collapsed OR trust was never healthy (≤40).
+    // Raised from ≤20 to ≤40 so most struggling groups hit this naturally,
+    // not just groups who catastrophically failed.
+    if (groupTrustCollapse || trust <= 40) return 'betrayalEnding';
 
-    // Observer ending — their own decision shapes the close, if they made one
+    // Forgotten ending — Distorted sanity (30-59) means the player is too
+    // unstable to escape cleanly, even if trust didn't fully collapse.
+    // This is now the default for "almost made it" sessions.
+    if (tier === 'distorted') return 'forgottenEnding';
+
+    // Observer ending — their own decision shapes the close.
     if (role === 'observer' && observerChoice) return 'observerEnding';
 
-    // True Escape — now a real achievement, not just a sanity floor.
-    // Requires Stable sanity AND high trust AND that the group actually
-    // reached majority alignment at the Convergence. Previously this
-    // only checked sanity tier, making it the easiest ending to reach
-    // despite being framed as the hardest.
+    // True Escape — genuinely rare. Requires ALL of:
+    // - Stable sanity (≥60)
+    // - High group trust (≥75, up from previous implicit "not collapsed")
+    // - Convergence majority alignment achieved
+    // - Betrayer did NOT silently succeed (trust > 40 already gates this,
+    //   but also check that trust stayed above 60 through to Final Gate
+    //   to prevent a group that recovered from near-collapse from slipping in)
     const convergenceMajorityReached = Player.get().convergenceMajorityReached === true;
-    if (tier === 'stable' && trust >= 75 && convergenceMajorityReached) return 'trueEnding';
+    if (tier === 'stable' && trust >= 75 && convergenceMajorityReached && trust > 60) return 'trueEnding';
 
-    // Fallback for ambiguous middle states (e.g. Distorted sanity, trust
-    // neither collapsed nor high enough, no Observer decision available,
-    // or Stable sanity without real group alignment)
+    // Final fallback — Stable sanity but trust or alignment insufficient.
+    // Forgotten over Betrayal here since the player isn't actively hostile,
+    // just... didn't make it. The academy stops pointing at you.
     return role === 'observer' ? 'observerEnding' : 'forgottenEnding';
   }
 

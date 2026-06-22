@@ -120,9 +120,8 @@ const AudioManager = (() => {
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       const gain = ctx.createGain();
-      // Floor of 0.25 so quiet (Stable-tier) glitches are still clearly
-      // audible, scaling up to louder at higher intensity.
-      gain.gain.value = 0.25 + intensity * 0.45;
+      // Raised floor and ceiling so static is clearly audible at all tiers
+      gain.gain.value = 0.55 + intensity * 0.65;
       source.connect(gain);
       gain.connect(ctx.destination);
       source.start();
