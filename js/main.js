@@ -395,6 +395,9 @@
       // ---- ENTRY ----
       await showLine('It looks like a classroom. That should not be comforting.', { meta: 'Classroom' });
 
+      // ---- ATMOSPHERIC: BLACKBOARD ----
+      await showLine('"The student who remembers everything is the most dangerous kind of forgotten."', { meta: 'Blackboard' });
+
       // ---- EVENT 1: ROLL CALL ----
       NPC.showBackgroundStudents(4);
       await showLine('Five chairs. Five names. None of them feel new.', { meta: 'Roll Call' });
@@ -406,7 +409,7 @@
 
       const role = (Player.get().role) || 'wanderer';
       const reaction = SEATING_REACTIONS[role] || SEATING_REACTIONS.wanderer;
-      Trust.shift(0); // no trust change yet — this beat is personal, not group
+      Trust.shift(0);
       await showLine(reaction, { meta: 'Seating' });
 
       // ---- EVENT 3: LESSON FRAGMENT ----
@@ -417,7 +420,10 @@
       );
       await showLine('The sentence never finishes. No one explains who is teaching.', { meta: 'Lesson' });
 
-      // ---- EVENT 4: QUIET QUESTION (first real choice) ----
+      // ---- EVENT 4: TEACHER RIDDLE (consequential) ----
+      await runTeacherRiddle();
+
+      // ---- EVENT 5: QUIET QUESTION ----
       await showLine('The sixth seat is still there. No one else seems to be counting.', { meta: 'Seating' });
       await runQuietQuestion();
 
@@ -432,6 +438,45 @@
       goToScene('scene-hallway');
       AudioManager.play('hallway');
       runHallway();
+    }
+
+    function runTeacherRiddle() {
+      return new Promise(resolve => {
+        metaEl.textContent = 'Lesson';
+        textEl.innerHTML = '<span class="beat">"What is the name of the student who was here before you?"</span>';
+
+        const options = [
+          { text: 'I don\'t know', sanityDelta: -2, trustDelta: 0, flavor: 'The honest answer. The academy writes it down.' },
+          { text: 'There was no one before us', sanityDelta: 0, trustDelta: -3, flavor: 'The group shifts uncomfortably. No one agrees.' },
+          { text: '[Your own name]', sanityDelta: -5, trustDelta: 0, glitch: true, flavor: 'Something about saying your own name here feels deeply wrong.' },
+          { text: 'The academy knows', sanityDelta: 0, trustDelta: 3, flavor: 'The voice pauses. Then continues. Apparently satisfied.' }
+        ];
+
+        choiceContainer.style.display = 'flex';
+        choiceContainer.innerHTML = '';
+
+        options.forEach(opt => {
+          const btn = document.createElement('button');
+          btn.className = 'choice-btn';
+          btn.textContent = opt.text;
+          btn.addEventListener('click', async () => {
+            choiceContainer.style.display = 'none';
+            if (opt.sanityDelta) Player.update({ sanity: Math.max(0, (Player.get().sanity || 75) + opt.sanityDelta) });
+            if (opt.trustDelta) Trust.shift(opt.trustDelta);
+            if (opt.glitch) {
+              const span = document.createElement('span');
+              textEl.innerHTML = '';
+              textEl.appendChild(span);
+              GlitchDialogue.render(span, opt.flavor, Player.get().sanity);
+              await wait(2200);
+            } else {
+              await showLine(opt.flavor, { meta: 'Lesson' });
+            }
+            resolve();
+          }, { once: true });
+          choiceContainer.appendChild(btn);
+        });
+      });
     }
 
     function runQuietQuestion() {
@@ -584,6 +629,13 @@
       await showLine('For a moment, this doesn\'t look like the same hallway anymore.', { meta: 'Separation' });
       await showLine('But you\'re still in the same space. You\'re sure of that. Mostly.', { meta: 'Separation' });
 
+      // ---- ATMOSPHERIC: WALL WRITING ----
+      await showLine('Scratched into the wall at eye level, in handwriting that looks like yours:', { meta: 'Hallway' });
+      await showLine('"You have passed this point before. You will pass it again."', { meta: 'Hallway' });
+
+      // ---- RIDDLE: GIRL IN THE CORRIDOR ----
+      await runCorridorRiddle();
+
       // ---- EXIT ----
       await showLine('"The library remembers you."', { meta: 'Hallway', holdForClick: false, glitch: true });
       await wait(2200);
@@ -595,6 +647,50 @@
       goToScene('scene-library');
       AudioManager.play('library');
       runLibrary();
+    }
+
+    function runCorridorRiddle() {
+      return new Promise(resolve => {
+        metaEl.textContent = 'Corridor';
+        textEl.innerHTML = '<span class="beat">The Girl in the Corridor appears at the end of the hall.</span>';
+
+        setTimeout(async () => {
+          await NPC.speak('"Which door did you come from?"', { holdMs: 3000 });
+          textEl.innerHTML = '<span class="beat">"Which door did you come from?"</span>';
+
+          const options = [
+            { text: 'The classroom', trustDelta: 2, sanityDelta: 0, flavor: 'She nods once, then turns. The hallway feels a little shorter.' },
+            { text: 'I\'m not sure', trustDelta: 0, sanityDelta: -3, flavor: 'The honest answer. It costs something to admit it here.' },
+            { text: 'The same door as you', trustDelta: 0, sanityDelta: -2, glitch: true, flavor: 'She vanishes faster than she should. You\'re not sure what you said wrong.' },
+            { text: 'There was no door', trustDelta: -4, sanityDelta: 0, flavor: 'The group shifts. Something about that answer unsettles everyone.' }
+          ];
+
+          choiceContainer.style.display = 'flex';
+          choiceContainer.innerHTML = '';
+
+          options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = opt.text;
+            btn.addEventListener('click', async () => {
+              choiceContainer.style.display = 'none';
+              if (opt.sanityDelta) Player.update({ sanity: Math.max(0, (Player.get().sanity || 75) + opt.sanityDelta) });
+              if (opt.trustDelta) Trust.shift(opt.trustDelta);
+              if (opt.glitch) {
+                const span = document.createElement('span');
+                textEl.innerHTML = '';
+                textEl.appendChild(span);
+                GlitchDialogue.render(span, opt.flavor, Player.get().sanity);
+                await new Promise(r => setTimeout(r, 2200));
+              } else {
+                await showLine(opt.flavor, { meta: 'Corridor' });
+              }
+              resolve();
+            }, { once: true });
+            choiceContainer.appendChild(btn);
+          });
+        }, 1800);
+      });
     }
 
     function runMovementChoice() {
@@ -728,6 +824,13 @@
       // ---- QUIET QUESTION: WHAT DO YOU TAKE FROM THIS ----
       await runFragmentChoice();
 
+      // ---- ATMOSPHERIC: FALLEN BOOK ----
+      await showLine('A book falls open somewhere behind you. You didn\'t touch it.', { meta: 'Library' });
+      await showLine('"All records of your arrival have been filed under: expected."', { meta: 'Library' });
+
+      // ---- RIDDLE: THE LIBRARIAN ----
+      await runLibrarianRiddle();
+
       // ---- EXIT ----
       await showLine('The Librarian closes the book without looking at it. Without looking at you.', { meta: 'Library', holdForClick: false });
       await wait(2000);
@@ -739,6 +842,56 @@
       goToScene('scene-convergence');
       AudioManager.play('library');
       runConvergence();
+    }
+
+    function runLibrarianRiddle() {
+      return new Promise(resolve => {
+        metaEl.textContent = 'The Librarian';
+        textEl.innerHTML = '<span class="beat">The Librarian slides a card across the desk without looking up.</span>';
+
+        setTimeout(async () => {
+          await NPC.speak('"Find the book that was already returned."', { holdMs: 3000 });
+          textEl.innerHTML = '<span class="beat">"Find the book that was already returned."</span>';
+
+          const options = [
+            { text: 'The one with no title', trustDelta: 2, sanityDelta: 0, observerFragment: true, flavor: 'You hold it up. She doesn\'t look. But she stops moving.' },
+            { text: 'The one that\'s still warm', trustDelta: 0, sanityDelta: -3, flavor: 'Wrong. You knew it was wrong before you reached for it. You reached anyway.' },
+            { text: 'None of these were returned', trustDelta: -2, sanityDelta: 0, betrayerWindow: true, flavor: 'The doubt spreads. It was meant to.' },
+            { text: 'The one that has your name in it', trustDelta: 0, sanityDelta: -5, glitch: true, flavor: 'Your name. In your handwriting. Dated before you arrived.' }
+          ];
+
+          choiceContainer.style.display = 'flex';
+          choiceContainer.innerHTML = '';
+
+          options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = opt.text;
+            btn.addEventListener('click', async () => {
+              choiceContainer.style.display = 'none';
+              if (opt.sanityDelta) Player.update({ sanity: Math.max(0, (Player.get().sanity || 75) + opt.sanityDelta) });
+              if (opt.trustDelta) Trust.shift(opt.trustDelta);
+              if (opt.observerFragment && (Player.get().role) === 'observer') {
+                Player.update({ observerLibraryFragment: true });
+              }
+              if (opt.betrayerWindow && (Player.get().role) === 'betrayer') {
+                Trust.shift(-2); // extra cost for Betrayer exploiting this
+              }
+              if (opt.glitch) {
+                const span = document.createElement('span');
+                textEl.innerHTML = '';
+                textEl.appendChild(span);
+                GlitchDialogue.render(span, opt.flavor, Player.get().sanity);
+                await new Promise(r => setTimeout(r, 2200));
+              } else {
+                await showLine(opt.flavor, { meta: 'The Librarian' });
+              }
+              resolve();
+            }, { once: true });
+            choiceContainer.appendChild(btn);
+          });
+        }, 1800);
+      });
     }
 
     function runObserverChoice() {
@@ -1015,6 +1168,13 @@
       // ---- FINAL ALIGNMENT EVENT ----
       await runFinalAlignment();
 
+      // ---- ATMOSPHERIC: CLOCK FACE ----
+      await showLine('The clock face has no numbers.', { meta: 'Clock Tower' });
+      await showLine('"Soon. Soon. Soon. Soon. Soon. Soon. Soon. Soon. Soon. Soon. Soon. Soon."', { meta: 'Clock Tower', glitch: true });
+
+      // ---- RIDDLE: THE BOY WHO REMEMBERS ----
+      await runBoyRiddle();
+
       // ---- EXIT ----
       await showLine('The tower goes quiet. Somewhere below, a door is already open.', { meta: 'Clock Tower', holdForClick: false });
       await wait(2000);
@@ -1063,11 +1223,52 @@
       });
     }
 
+    function runBoyRiddle() {
+      return new Promise(resolve => {
+        metaEl.textContent = 'The Boy Who Remembers';
+        textEl.innerHTML = '<span class="beat">He blocks the stairs without moving. Just standing there, waiting to be asked.</span>';
+
+        setTimeout(() => {
+          textEl.innerHTML = '<span class="beat">"Tell me what time it was when you arrived."</span>';
+
+          const options = [
+            { text: 'I don\'t know what time it was', trustDelta: 1, sanityDelta: -2, flavor: 'He nods slowly. "That\'s what the others said too."' },
+            { text: 'The same time it is now', trustDelta: 0, sanityDelta: -4, glitch: true, flavor: 'He tilts his head. "Then you never arrived. You\'ve always been here."' },
+            { text: 'Before any of this started', trustDelta: 3, sanityDelta: 0, flavor: 'He steps aside without a word. The group likes this answer, somehow.' },
+            { text: 'You already know', trustDelta: -2, sanityDelta: 0, flavor: 'He smiles. That\'s the wrong move. You feel it immediately.' }
+          ];
+
+          choiceContainer.style.display = 'flex';
+          choiceContainer.innerHTML = '';
+
+          options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = opt.text;
+            btn.addEventListener('click', async () => {
+              choiceContainer.style.display = 'none';
+              if (opt.sanityDelta) Player.update({ sanity: Math.max(0, (Player.get().sanity || 75) + opt.sanityDelta) });
+              if (opt.trustDelta) Trust.shift(opt.trustDelta);
+              if (opt.glitch) {
+                const span = document.createElement('span');
+                textEl.innerHTML = '';
+                textEl.appendChild(span);
+                GlitchDialogue.render(span, opt.flavor, Player.get().sanity);
+                await new Promise(r => setTimeout(r, 2200));
+              } else {
+                await showLine(opt.flavor, { meta: 'The Boy Who Remembers' });
+              }
+              resolve();
+            }, { once: true });
+            choiceContainer.appendChild(btn);
+          });
+        }, 1800);
+      });
+    }
+
     sequence();
   }
 
-  // ====================================================================
-  // FINAL GATE
   // (locked design: Sanity Final Check -> Role Resolution -> Betrayal
   //  Reveal Check -> Observer Decision -> Ending Calculation -> Ending)
   // ====================================================================
@@ -1166,16 +1367,55 @@
         // the absence of a reveal IS the design, not an oversight.
       }
 
+      // ---- ATMOSPHERIC: CARVED TEXT ABOVE THE GATE ----
+      await showLine('Above the gate, letters carve themselves into the stone:', { meta: 'Final Gate' });
+      await showLine('"Only those who remember may leave."', { meta: 'Final Gate', glitch: true });
+      await showLine('Below it, in smaller letters:', { meta: 'Final Gate' });
+      await showLine('"Only those who forget may stay."', { meta: 'Final Gate' });
+
+      // ---- EVENT 4a: GATE RIDDLE (consequential — affects ending weight) ----
+      await runGateRiddle();
+
       // ---- EVENT 4: OBSERVER DECISION PHASE ----
+      // Observer's choice is written to Firebase so ALL players calculate
+      // the same ending — this is the core of "everyone gets the same ending."
       let observerChoice = null;
       if (role === 'observer') {
         observerChoice = await runObserverDecision();
+        // Write choice to Firebase so every other player reads it
+        try {
+          if (typeof Session !== 'undefined' && Session.getCode()) {
+            await firebase.database()
+              .ref(`sessions/${Session.getCode()}/observerChoice`)
+              .set(observerChoice);
+          }
+        } catch (e) {
+          console.warn('Could not write Observer choice to Firebase:', e);
+        }
       } else {
-        await wait(400);
+        // Non-Observer players wait briefly then read Observer's decision
+        await showLine('The Observer stands at the gate alone.', { meta: 'Final Gate' });
+        await showLine('Whatever they choose, it ends this for everyone.', { meta: 'Final Gate', holdForClick: false });
+        await wait(2000);
+        try {
+          if (typeof Session !== 'undefined' && Session.getCode()) {
+            const snap = await firebase.database()
+              .ref(`sessions/${Session.getCode()}/observerChoice`)
+              .once('value');
+            observerChoice = snap.val();
+          }
+        } catch (e) {
+          console.warn('Could not read Observer choice from Firebase:', e);
+        }
       }
 
       // ---- EVENT 5 (SECRET): BUTTERFLY CONDITION CHECK ----
-      const butterflyConditionMet = tier === 'stable' && trust >= 70;
+      // Original condition: high sanity + high trust
+      // New: also triggered if player answered "Nothing" at the Gate riddle
+      // (earning a butterflyPoints flag), as the gate answer is the final
+      // piece of the secret truth-completion condition.
+      const butterflyPoints = Player.get().butterflyPoints || 0;
+      const butterflyConditionMet = (tier === 'stable' && trust >= 70) || (butterflyPoints >= 1 && tier === 'stable' && trust >= 55);
 
       // ---- ENDING CALCULATION ENGINE ----
       const endingKey = calculateEnding({ tier, trust, role, observerChoice, butterflyConditionMet, groupTrustCollapse });
@@ -1190,6 +1430,60 @@
 
       sceneEl.classList.remove('scene-fading-out');
       runEnding(endingKey);
+    }
+
+    function runGateRiddle() {
+      return new Promise(resolve => {
+        metaEl.textContent = 'The Gate';
+        textEl.innerHTML = '<span class="beat" style="animation:none;opacity:1;"></span>';
+        const span = textEl.querySelector('span');
+        GlitchDialogue.render(span, '"What did the academy take from you?"', Player.get().sanity);
+
+        setTimeout(() => {
+          const options = [
+            {
+              text: 'My name',
+              flavor: 'You say it plainly. The gate seems to recognize the answer.',
+              effect: () => Player.update({ gateAnswer: 'name', forgottenWeight: (Player.get().forgottenWeight || 0) + 1 })
+            },
+            {
+              text: 'My trust in others',
+              flavor: 'The words settle heavier than you expected.',
+              effect: () => Player.update({ gateAnswer: 'trust', betrayalWeight: (Player.get().betrayalWeight || 0) + 1 })
+            },
+            {
+              text: 'My certainty',
+              flavor: 'Something shifts. The academy writes it down somewhere you can\'t see.',
+              effect: () => Player.update({ gateAnswer: 'certainty', observerWeight: (Player.get().observerWeight || 0) + 1 })
+            },
+            {
+              text: 'Nothing. I came with nothing.',
+              flavor: 'A pause. Then the butterfly appears, briefly, at the edge of the gate.',
+              effect: () => {
+                const current = Player.get().butterflyPoints || 0;
+                Player.update({ gateAnswer: 'nothing', butterflyPoints: current + 1 });
+                Butterfly.spawn(document.getElementById('scene-finalgate'), { count: 1, duration: [3000, 4000] });
+              }
+            }
+          ];
+
+          choiceContainer.style.display = 'flex';
+          choiceContainer.innerHTML = '';
+
+          options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = opt.text;
+            btn.addEventListener('click', async () => {
+              choiceContainer.style.display = 'none';
+              opt.effect();
+              await showLine(opt.flavor, { meta: 'The Gate' });
+              resolve();
+            }, { once: true });
+            choiceContainer.appendChild(btn);
+          });
+        }, 2200);
+      });
     }
 
     function runObserverDecision() {
@@ -1240,39 +1534,32 @@
   // ====================================================================
 
   function calculateEnding({ tier, trust, role, observerChoice, butterflyConditionMet, groupTrustCollapse }) {
-    // Secret Butterfly Ending — rarest of all, full truth completion
+    // Secret Butterfly — rarest, takes priority over everything
     if (butterflyConditionMet) return 'secretButterfly';
 
-    // Forgotten identity collapse — sanity fully gone
+    // Forgotten identity collapse — sanity fully gone, no override
     if (tier === 'lost') return 'forgottenEnding';
 
-    // Betrayal ending — trust collapsed OR trust was never healthy (≤40).
-    // Raised from ≤20 to ≤40 so most struggling groups hit this naturally,
-    // not just groups who catastrophically failed.
+    // Betrayal — trust collapsed or never healthy, no override
     if (groupTrustCollapse || trust <= 40) return 'betrayalEnding';
 
-    // Forgotten ending — Distorted sanity (30-59) means the player is too
-    // unstable to escape cleanly, even if trust didn't fully collapse.
-    // This is now the default for "almost made it" sessions.
+    // Forgotten — distorted sanity, "almost made it" sessions
     if (tier === 'distorted') return 'forgottenEnding';
 
-    // Observer ending — their own decision shapes the close.
-    if (role === 'observer' && observerChoice) return 'observerEnding';
+    // Observer's 3-way decision determines the shared group ending
+    // for any group that survived well enough. Everyone gets the same
+    // ending based on what Observer chose — this is Observer's real power.
+    if (observerChoice === 'escape') return 'observerEscape';
+    if (observerChoice === 'stay') return 'observerStay';
+    if (observerChoice === 'sacrifice') return 'observerSacrifice';
 
-    // True Escape — genuinely rare. Requires ALL of:
-    // - Stable sanity (≥60)
-    // - High group trust (≥75, up from previous implicit "not collapsed")
-    // - Convergence majority alignment achieved
-    // - Betrayer did NOT silently succeed (trust > 40 already gates this,
-    //   but also check that trust stayed above 60 through to Final Gate
-    //   to prevent a group that recovered from near-collapse from slipping in)
+    // True Escape — only if no Observer decision was made (e.g. no Observer
+    // in the group, or Observer never reached Final Gate) AND all conditions met
     const convergenceMajorityReached = Player.get().convergenceMajorityReached === true;
     if (tier === 'stable' && trust >= 75 && convergenceMajorityReached && trust > 60) return 'trueEnding';
 
-    // Final fallback — Stable sanity but trust or alignment insufficient.
-    // Forgotten over Betrayal here since the player isn't actively hostile,
-    // just... didn't make it. The academy stops pointing at you.
-    return role === 'observer' ? 'observerEnding' : 'forgottenEnding';
+    // Final fallback
+    return 'forgottenEnding';
   }
 
   const ENDING_CONTENT = {
@@ -1297,12 +1584,26 @@
       text: 'You stop trying to remember your name. It stops mattering. The halls feel a little more like home than they should.',
       closingLine: 'The academy remembers you. You no longer remember it.'
     },
-    observerEnding: {
+    observerEscape: {
       bg: 'https://files.catbox.moe/bcavv5.jpg',
       track: 'observerEnding',
-      title: 'Observer',
-      text: 'What you chose to see becomes what was true. The others never know how much of this was your decision.',
-      closingLine: 'The academy remembers what you chose to see.'
+      title: 'Observer — Escape',
+      text: 'You left with full awareness. The others followed, not knowing it was your decision that opened the door. The academy marks this as system corruption. Awareness is not permitted outside.',
+      closingLine: 'The academy remembers you as one who left with full awareness.'
+    },
+    observerStay: {
+      bg: 'https://files.catbox.moe/bcavv5.jpg',
+      track: 'observerEnding',
+      title: 'Observer — Stay',
+      text: 'You stopped needing confirmation. The others left. The academy accepted your remaining as permanence. You are now part of its verification layer.',
+      closingLine: 'The academy remembers you as part of what remembers.'
+    },
+    observerSacrifice: {
+      bg: 'https://files.catbox.moe/bcavv5.jpg',
+      track: 'observerEnding',
+      title: 'Observer — Sacrifice',
+      text: 'Your decision was recorded after it already happened. The others left before you chose. You resolved a sequence inconsistency they will never know existed.',
+      closingLine: 'The academy remembers you as the error it needed.'
     },
     secretButterfly: {
       bg: 'https://files.catbox.moe/4egrjl.jpg',
@@ -1332,10 +1633,20 @@
       'We continued without updating your status.',
       'You still exist in unlabelled storage.'
     ],
-    observerEnding: [
+    observerEscape: [
       'Observers are not released.',
       'They are relocated between interpretations.',
       'You will be watching again soon.'
+    ],
+    observerStay: [
+      'You are the reason events feel repeated.',
+      'You are used to check if memory still fails.',
+      'The academy thanks you for your continued service.'
+    ],
+    observerSacrifice: [
+      'We thank you for resolving timeline inconsistency.',
+      'Your presence was the error we needed.',
+      'The sequence is now correct. You are not in it.'
     ],
     secretButterfly: [
       'We stopped separating player from outcome.',
