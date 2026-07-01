@@ -105,8 +105,8 @@ const Session = (() => {
   }
 
   /**
-   * Joins an existing session by code. Returns false if the session
-   * doesn't exist, is already full, or has already started.
+   * Joins an existing session by code using an atomic transaction to
+   * prevent race conditions when multiple players join simultaneously.
    */
   async function join(code) {
     await init();
@@ -125,22 +125,30 @@ const Session = (() => {
       return { ok: false, reason: 'started' };
     }
 
-    const currentPlayers = data.players ? Object.keys(data.players).length : 0;
-    if (currentPlayers >= 5) {
-      return { ok: false, reason: 'full' };
-    }
-
+    // Use a transaction on the players node to atomically check + add,
+    // preventing two players from both passing the count check simultaneously
     sessionCode = cleanCode;
     playerId = _generatePlayerId();
     sessionRef = ref;
 
-    await sessionRef.child('players/' + playerId).set({
-      joinedAt: Date.now(),
-      name: null,
-      sanity: 75,
-      role: null,
-      connected: true
+    let joinResult = { ok: false, reason: 'full' };
+
+    await ref.child('players').transaction(players => {
+      const currentCount = players ? Object.keys(players).length : 0;
+      if (currentCount >= 5) return; // abort transaction = full
+      const newPlayers = players || {};
+      newPlayers[playerId] = {
+        joinedAt: Date.now(),
+        name: null,
+        sanity: 75,
+        role: null,
+        connected: true
+      };
+      joinResult = { ok: true };
+      return newPlayers;
     });
+
+    if (!joinResult.ok) return joinResult;
 
     _attachPresence();
     return { ok: true };
@@ -206,6 +214,64 @@ const Session = (() => {
     return snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
   }
 
+  /**
+   * Plant Doubt — Betrayer writes a poisoned option label to Firebase.
+   * Other players read this before their choice renders and see the
+   * altered text. Betrayer always sees the real option text.
+   */
+  function plantDoubt(roomId, optionIndex, alteredText) {
+    if (!sessionRef) return Promise.resolve();
+    return sessionRef.child(`plantDoubt/${roomId}`).set({
+      optionIndex,
+      alteredText,
+      by: playerId
+    });
+  }
+
+  function getPlantDoubt(roomId) {
+    if (!sessionRef) return Promise.resolve(null);
+    return sessionRef.child(`plantDoubt/${roomId}`).once('value')
+      .then(snap => snap.val());
+  }
+
+  /**
+   * Borrowed Memory — Forgotten reads one fragment of shared session state.
+   * Returns an object with { type, value } or null if nothing available.
+   */
+  async function borrowMemory() {
+    if (!sessionRef) return null;
+    const snap = await sessionRef.once('value');
+    const session = snap.val();
+    if (!session || !session.players) return null;
+
+    const fragments = [];
+    const players = Object.entries(session.players).filter(([id]) => id !== playerId);
+
+    // Fragment 1: a random other player's sanity tier
+    if (players.length > 0) {
+      const [, p] = players[Math.floor(Math.random() * players.length)];
+      const sanity = p.sanity || 75;
+      const tier = sanity >= 60 ? 'Stable' : sanity >= 30 ? 'Distorted' : 'Lost';
+      fragments.push({ type: 'sanity', value: `Someone among you is ${tier}.` });
+    }
+
+    // Fragment 2: whether Plant Doubt was used this room
+    const currentRoom = GameState.loadState('player')?.currentScene || '';
+    const doubt = session.plantDoubt?.[currentRoom];
+    if (doubt) {
+      fragments.push({ type: 'betrayer', value: 'Something was changed before anyone voted.' });
+    } else {
+      fragments.push({ type: 'betrayer', value: 'Nothing has been altered. Yet.' });
+    }
+
+    // Fragment 3: Observer truth fragment if available
+    if (session.observerTruth) {
+      fragments.push({ type: 'observer', value: `The Observer saw: "${session.observerTruth}"` });
+    }
+
+    return fragments[Math.floor(Math.random() * fragments.length)];
+  }
+
   return {
     create,
     join,
@@ -215,6 +281,9 @@ const Session = (() => {
     setPlayerData,
     shiftTrust,
     markStarted,
+    plantDoubt,
+    getPlantDoubt,
+    borrowMemory,
     getPlayerCount
   };
 })();

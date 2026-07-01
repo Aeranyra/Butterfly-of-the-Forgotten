@@ -520,7 +520,7 @@
         metaEl.textContent = 'Quiet Question';
         textEl.innerHTML = '<span class="beat">The sixth seat is still there. No one else seems to be counting.</span>';
 
-        setTimeout(() => {
+        setTimeout(async () => {
           textEl.innerHTML = '<span class="beat">Do you say something about the sixth seat?</span>';
 
           const options = [
@@ -532,24 +532,35 @@
           choiceContainer.style.display = 'flex';
           choiceContainer.innerHTML = '';
 
+          const buttons = [];
           options.forEach(opt => {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt.text;
             btn.addEventListener('click', async () => {
               choiceContainer.style.display = 'none';
+              RoleAbilities.checkPlantDoubtTrigger(btn);
               Trust.shift(opt.trustDelta);
               if (opt.text === 'Say nothing') {
-                // Per locked design: no immediate effect, but Forgotten
-                // instability ticks up slightly faster later. Tracked here
-                // as a flag for future rooms to read.
                 Player.update({ saidNothingInClassroom: true });
+              }
+              if (opt.trustDelta < -2) {
+                Horror.screenBleed(0.5);
+                Horror.consequenceMessage('medium');
+              } else if (opt.trustDelta < 0) {
+                Horror.consequenceMessage('light');
               }
               await showLine(opt.flavor, { meta: 'Quiet Question' });
               resolve();
             }, { once: true });
             choiceContainer.appendChild(btn);
+            buttons.push(btn);
           });
+
+          // Wire Plant Doubt + Borrowed Memory for Classroom
+          await RoleAbilities.showPlantDoubt('classroom', options, choiceContainer);
+          await RoleAbilities.applyPlantDoubt('classroom', buttons);
+          RoleAbilities.showBorrowedMemory('classroom', textEl, metaEl);
         }, 1800);
       });
     }
@@ -1291,7 +1302,7 @@
     }
 
     function runSharedQuestion() {
-      return new Promise(resolve => {
+      return new Promise(async (resolve) => {
         metaEl.textContent = 'The Question';
         textEl.innerHTML = '<span class="beat">"If the gate opened right now — would you walk through it?"</span>';
 
@@ -1304,17 +1315,25 @@
         choiceContainer.style.display = 'flex';
         choiceContainer.innerHTML = '';
 
+        const buttons = [];
         options.forEach(opt => {
           const btn = document.createElement('button');
           btn.className = 'choice-btn';
           btn.textContent = opt.text;
           btn.addEventListener('click', async () => {
             choiceContainer.style.display = 'none';
+            RoleAbilities.checkPlantDoubtTrigger(btn);
             await showLine(opt.flavor, { meta: 'The Question' });
             resolve(opt.value);
           }, { once: true });
           choiceContainer.appendChild(btn);
+          buttons.push(btn);
         });
+
+        // Wire Plant Doubt + Borrowed Memory for Convergence
+        await RoleAbilities.showPlantDoubt('convergence', options, choiceContainer);
+        await RoleAbilities.applyPlantDoubt('convergence', buttons);
+        RoleAbilities.showBorrowedMemory('convergence', textEl, metaEl);
       });
     }
 
@@ -1437,7 +1456,7 @@
         metaEl.textContent = 'Final Alignment';
         textEl.innerHTML = '<span class="beat">The tower has gone quiet, waiting on something none of you said out loud.</span>';
 
-        setTimeout(() => {
+        setTimeout(async () => {
           textEl.innerHTML = '<span class="beat">Choose what you believe is real.</span>';
 
           const options = [
@@ -1449,20 +1468,29 @@
           choiceContainer.style.display = 'flex';
           choiceContainer.innerHTML = '';
 
+          const buttons = [];
           options.forEach(opt => {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt.text;
             btn.addEventListener('click', async () => {
               choiceContainer.style.display = 'none';
+              RoleAbilities.checkPlantDoubtTrigger(btn);
               const current = Player.get().sanity;
               Player.update({ sanity: Math.max(0, Math.min(100, current + opt.sanityDelta)) });
               Player.update({ alignmentChoice: opt.text });
+              if (opt.sanityDelta < 0) Horror.consequenceMessage('light');
               await showLine(opt.flavor, { meta: 'Final Alignment' });
               resolve();
             }, { once: true });
             choiceContainer.appendChild(btn);
+            buttons.push(btn);
           });
+
+          // Wire Plant Doubt + Borrowed Memory for Clock Tower
+          await RoleAbilities.showPlantDoubt('clocktower', options, choiceContainer);
+          await RoleAbilities.applyPlantDoubt('clocktower', buttons);
+          RoleAbilities.showBorrowedMemory('clocktower', textEl, metaEl);
         }, 1800);
       });
     }
