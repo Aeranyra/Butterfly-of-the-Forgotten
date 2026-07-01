@@ -130,5 +130,6 @@ const AudioManager = (() => {
     }
   }
 
-  return { play, stop, unlock, playStatic, TRACKS };
+  return { play, stop, unlock, playStatic, TRACKS,
+    get _currentAudio() { return currentAudio; } };
 })();

@@ -93,6 +93,29 @@
     Player.setScene(sceneId);
   }
 
+  // ---------- HORROR CHOICE WRAPPER ----------
+  // Applies atmosphere + consequence effects to any riddle/choice result
+  // based on the option's sanityDelta, trustDelta, and glitch flag.
+  // Call this inside every choice handler after applying the stat changes.
+  async function applyHorrorEffects(opt, wait) {
+    if (opt.glitch) {
+      Horror.silenceSpike(800);
+      Horror.screenBleed(0.9);
+      Horror.trackWrongRiddle();
+      await wait(900);
+    } else if (opt.sanityDelta <= -5 || opt.trustDelta <= -4) {
+      Horror.silenceSpike(600);
+      Horror.screenBleed(0.8);
+      Horror.consequenceMessage('heavy');
+    } else if (opt.sanityDelta < -2 || opt.trustDelta < -2) {
+      Horror.silenceSpike(400);
+      Horror.screenBleed(0.5);
+      Horror.consequenceMessage('medium');
+    } else if (opt.sanityDelta < 0 || opt.trustDelta < 0) {
+      Horror.consequenceMessage('light');
+    }
+  }
+
   // ---------- CURSOR TRAIL (global, persists across all scenes) ----------
   let stopCursorTrail = null;
   function startCursorTrail() {
@@ -463,13 +486,26 @@
             choiceContainer.style.display = 'none';
             if (opt.sanityDelta) Player.update({ sanity: Math.max(0, (Player.get().sanity || 75) + opt.sanityDelta) });
             if (opt.trustDelta) Trust.shift(opt.trustDelta);
+
+            // Horror effects based on consequence severity
             if (opt.glitch) {
+              Horror.silenceSpike(800);
+              Horror.screenBleed(0.9);
+              Horror.trackWrongRiddle();
+              await wait(900);
               const span = document.createElement('span');
               textEl.innerHTML = '';
               textEl.appendChild(span);
               GlitchDialogue.render(span, opt.flavor, Player.get().sanity);
               await wait(2200);
             } else {
+              if (opt.sanityDelta < -3 || opt.trustDelta < -2) {
+                Horror.silenceSpike(600);
+                Horror.screenBleed(0.5);
+                Horror.consequenceMessage(opt.sanityDelta <= -4 ? 'heavy' : 'medium');
+              } else if (opt.sanityDelta < 0 || opt.trustDelta < 0) {
+                Horror.consequenceMessage('light');
+              }
               await showLine(opt.flavor, { meta: 'Lesson' });
             }
             resolve();
@@ -520,6 +556,178 @@
 
     sequence();
   }
+
+  // ====================================================================
+  // ROLE ABILITIES
+  // Plant Doubt (Betrayer) + Borrowed Memory (Forgotten)
+  // ====================================================================
+  const RoleAbilities = (() => {
+    const plantDoubtUsed = {}; // roomId → true
+    let borrowedMemoryUsed = {}; // roomId → true
+
+    /**
+     * PLANT DOUBT — Betrayer active ability.
+     * Shows the Betrayer a secret panel during a choice window where they
+     * can alter one option's label for everyone else. Once per room, 4 uses max.
+     * Returns a Promise that resolves with the poisoned option index (or -1 if skipped).
+     */
+    function showPlantDoubt(roomId, options, container) {
+      const role = Player.get().role;
+      if (role !== 'betrayer') return Promise.resolve(-1);
+      if (plantDoubtUsed[roomId]) return Promise.resolve(-1);
+
+      const totalUsed = Object.keys(plantDoubtUsed).length;
+      if (totalUsed >= 4) return Promise.resolve(-1); // max 4 uses per session
+
+      return new Promise(resolve => {
+        const panel = document.createElement('div');
+        panel.style.cssText = `
+          position: fixed; top: 5%; right: 4%; z-index: 50;
+          background: rgba(10,9,12,0.92); border: 1px solid rgba(176,68,68,0.4);
+          padding: 1rem 1.2rem; max-width: 220px;
+          font-family: 'Jost', sans-serif; font-weight: 300; font-size: 0.8rem;
+          color: rgba(232,230,224,0.7); letter-spacing: 0.04em;
+        `;
+
+        const label = document.createElement('p');
+        label.textContent = 'Plant Doubt';
+        label.style.cssText = 'color: rgba(176,68,68,0.9); margin-bottom: 0.7rem; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase;';
+        panel.appendChild(label);
+
+        const skipBtn = document.createElement('button');
+        skipBtn.textContent = 'Skip';
+        skipBtn.style.cssText = 'background:none; border:none; color:rgba(138,135,144,0.6); font-family:inherit; font-size:0.75rem; cursor:pointer; display:block; margin-top:0.5rem;';
+
+        options.forEach((opt, i) => {
+          const btn = document.createElement('button');
+          btn.textContent = opt.text;
+          btn.style.cssText = 'display:block; width:100%; background:none; border:1px solid rgba(176,68,68,0.2); color:rgba(232,230,224,0.8); font-family:inherit; font-size:0.78rem; padding:0.35rem 0.6rem; cursor:pointer; margin-bottom:0.4rem; text-align:left;';
+          btn.addEventListener('click', async () => {
+            panel.remove();
+            plantDoubtUsed[roomId] = true;
+
+            // Alter this option's text to something misleading
+            const alterations = [
+              'Something you already know',
+              'The one that changes nothing',
+              'What the academy prefers',
+              'The answer you almost gave'
+            ];
+            const alteredText = alterations[Math.floor(Math.random() * alterations.length)];
+
+            // Write to Firebase so other players see the altered label
+            try {
+              if (typeof Session !== 'undefined' && Session.getCode()) {
+                await Session.plantDoubt(roomId, i, alteredText);
+              }
+            } catch (e) {
+              console.warn('Plant Doubt Firebase write failed:', e);
+            }
+
+            // Cost: small sanity tick for using the power
+            Player.update({ sanity: Math.max(0, Player.get().sanity - 3) });
+            resolve(i);
+          }, { once: true });
+          panel.appendChild(btn);
+        });
+
+        panel.appendChild(skipBtn);
+        skipBtn.addEventListener('click', () => { panel.remove(); resolve(-1); }, { once: true });
+        document.body.appendChild(panel);
+
+        // Auto-dismiss after 8s if no action taken
+        setTimeout(() => { if (panel.parentNode) { panel.remove(); resolve(-1); } }, 8000);
+      });
+    }
+
+    /**
+     * Applies Plant Doubt to a choice list — reads the Firebase state
+     * and alters the button text for the poisoned option index (if any).
+     * Non-Betrayer players only; Betrayer always sees real labels.
+     */
+    async function applyPlantDoubt(roomId, buttons) {
+      const role = Player.get().role;
+      if (role === 'betrayer') return; // Betrayer always sees real text
+      try {
+        if (typeof Session === 'undefined' || !Session.getCode()) return;
+        const doubt = await Session.getPlantDoubt(roomId);
+        if (!doubt || doubt.optionIndex === undefined) return;
+        const btn = buttons[doubt.optionIndex];
+        if (!btn) return;
+        btn.dataset.realText = btn.textContent;
+        btn.textContent = doubt.alteredText;
+        btn.style.fontStyle = 'italic';
+        btn.style.opacity = '0.9';
+      } catch (e) {
+        console.warn('Plant Doubt read failed:', e);
+      }
+    }
+
+    /**
+     * Called when any non-Betrayer player clicks an option — checks if
+     * they were Plant Doubted and fires the paranoia echo if so.
+     */
+    function checkPlantDoubtTrigger(btn) {
+      if (btn.dataset.realText) {
+        Trust.shift(-2);
+        Horror.betrayerEcho();
+      }
+    }
+
+    /**
+     * BORROWED MEMORY — Forgotten active ability.
+     * Once per room, shows Forgotten a "Reach for a memory?" button that
+     * reveals one random fragment of shared session state.
+     */
+    function showBorrowedMemory(roomId, textEl, metaEl) {
+      const role = Player.get().role;
+      if (role !== 'forgotten') return;
+      if (borrowedMemoryUsed[roomId]) return;
+
+      const promptEl = document.createElement('button');
+      promptEl.className = 'menu-option';
+      promptEl.textContent = 'Reach for a memory?';
+      promptEl.style.cssText = 'position:fixed; bottom:18%; left:0; right:0; margin:auto; width:fit-content; opacity:0.6; font-size:0.8rem; z-index:10;';
+
+      promptEl.addEventListener('click', async () => {
+        promptEl.remove();
+        borrowedMemoryUsed[roomId] = true;
+
+        // Cost: sanity tick for borrowing someone else's memory
+        Player.update({ sanity: Math.max(0, Player.get().sanity - 4) });
+        Horror.screenBleed(0.4);
+
+        const fragment = await (typeof Session !== 'undefined' && Session.getCode()
+          ? Session.borrowMemory()
+          : Promise.resolve({ type: 'sanity', value: 'The connection is too weak to read clearly.' })
+        );
+
+        if (!fragment) return;
+
+        const oldMeta = metaEl.textContent;
+        metaEl.textContent = 'Borrowed Memory';
+        const span = document.createElement('span');
+        textEl.innerHTML = '';
+        textEl.appendChild(span);
+        GlitchDialogue.render(span, fragment.value, Player.get().sanity);
+        await new Promise(r => setTimeout(r, 3000));
+        metaEl.textContent = oldMeta;
+      }, { once: true });
+
+      document.body.appendChild(promptEl);
+
+      // Auto-dismiss after the choice window closes
+      setTimeout(() => { if (promptEl.parentNode) promptEl.remove(); }, 15000);
+    }
+
+    function resetRoom() {
+      // Called on scene transition — clears the "used this room" state
+      // Note: plantDoubtUsed persists across rooms (4 total uses)
+      // borrowedMemoryUsed is per-room so resets each room
+    }
+
+    return { showPlantDoubt, applyPlantDoubt, checkPlantDoubtTrigger, showBorrowedMemory };
+  })();
 
   // ====================================================================
   // HALLWAY
@@ -625,6 +833,12 @@
       }
 
       // ---- SEPARATION EVENT (key hallway mechanic) ----
+      // Butterflies behave erratically when trust is low — visual cue
+      const trust = Trust.get();
+      const butterflyOpts = Horror.erraticButterflyOptions(trust);
+      if (Object.keys(butterflyOpts).length > 0) {
+        Butterfly.spawn(sceneEl, butterflyOpts);
+      }
       await wait(400);
       await showLine('For a moment, this doesn\'t look like the same hallway anymore.', { meta: 'Separation' });
       await showLine('But you\'re still in the same space. You\'re sure of that. Mostly.', { meta: 'Separation' });
@@ -676,6 +890,7 @@
               choiceContainer.style.display = 'none';
               if (opt.sanityDelta) Player.update({ sanity: Math.max(0, (Player.get().sanity || 75) + opt.sanityDelta) });
               if (opt.trustDelta) Trust.shift(opt.trustDelta);
+              await applyHorrorEffects(opt, ms => new Promise(r => setTimeout(r, ms)));
               if (opt.glitch) {
                 const span = document.createElement('span');
                 textEl.innerHTML = '';
@@ -698,10 +913,9 @@
         metaEl.textContent = 'Movement';
         textEl.innerHTML = '<span class="beat">The hallway splits in three directions, plus the one behind you.</span>';
 
-        setTimeout(() => {
+        setTimeout(async () => {
           textEl.innerHTML = '<span class="beat">Which direction feels correct?</span>';
 
-          // Per locked rule: ALL choices lead forward. Only the flavor text differs.
           const options = [
             { text: 'Left corridor', flavor: 'You go left. The hallway accepts it without comment.' },
             { text: 'Right corridor', flavor: 'You go right. Nothing about it feels more or less correct than left would have.' },
@@ -712,21 +926,32 @@
           choiceContainer.style.display = 'flex';
           choiceContainer.innerHTML = '';
 
+          const buttons = [];
           options.forEach(opt => {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt.text;
+            buttons.push(btn);
+            choiceContainer.appendChild(btn);
+          });
+
+          // Plant Doubt: show Betrayer the secret panel before buttons are interactive
+          await RoleAbilities.showPlantDoubt('hallway', options, choiceContainer);
+          // Apply any existing Plant Doubt from Firebase for non-Betrayer players
+          await RoleAbilities.applyPlantDoubt('hallway', buttons);
+          // Borrowed Memory: show Forgotten the memory prompt
+          RoleAbilities.showBorrowedMemory('hallway', textEl, metaEl);
+
+          buttons.forEach((btn, i) => {
             btn.addEventListener('click', async () => {
+              RoleAbilities.checkPlantDoubtTrigger(btn);
               choiceContainer.style.display = 'none';
-              // Per locked Sanity rule: choosing Stay still is a small,
-              // cautious sanity gain.
-              if (opt.text === 'Stay still') {
+              if (options[i].text === 'Stay still') {
                 Player.update({ sanity: Math.min(100, Player.get().sanity + 2) });
               }
-              await showLine(opt.flavor, { meta: 'Movement' });
+              await showLine(options[i].flavor, { meta: 'Movement' });
               resolve();
             }, { once: true });
-            choiceContainer.appendChild(btn);
           });
         }, 1800);
       });
@@ -829,6 +1054,13 @@
       await showLine('"All records of your arrival have been filed under: expected."', { meta: 'Library' });
 
       // ---- RIDDLE: THE LIBRARIAN ----
+      // Compound riddle warning — fires if player has picked deeply wrong
+      // answers in previous rooms, making their pattern feel "recorded"
+      const compoundWarning = Horror.getCompoundWarning();
+      if (compoundWarning) {
+        await showLine(compoundWarning, { meta: 'Library', glitch: false });
+      }
+
       await runLibrarianRiddle();
 
       // ---- EXIT ----
@@ -875,8 +1107,9 @@
                 Player.update({ observerLibraryFragment: true });
               }
               if (opt.betrayerWindow && (Player.get().role) === 'betrayer') {
-                Trust.shift(-2); // extra cost for Betrayer exploiting this
+                Trust.shift(-2);
               }
+              await applyHorrorEffects(opt, ms => new Promise(r => setTimeout(r, ms)));
               if (opt.glitch) {
                 const span = document.createElement('span');
                 textEl.innerHTML = '';
@@ -937,7 +1170,7 @@
         metaEl.textContent = 'Fragment';
         textEl.innerHTML = '<span class="beat">The others are waiting to hear what the book said.</span>';
 
-        setTimeout(() => {
+        setTimeout(async () => {
           textEl.innerHTML = '<span class="beat">Do you tell them what you read?</span>';
 
           const options = [
@@ -949,17 +1182,28 @@
           choiceContainer.style.display = 'flex';
           choiceContainer.innerHTML = '';
 
+          const buttons = [];
           options.forEach(opt => {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt.text;
+            buttons.push(btn);
+            choiceContainer.appendChild(btn);
+          });
+
+          await RoleAbilities.showPlantDoubt('library', options, choiceContainer);
+          await RoleAbilities.applyPlantDoubt('library', buttons);
+          RoleAbilities.showBorrowedMemory('library', textEl, metaEl);
+
+          buttons.forEach((btn, i) => {
             btn.addEventListener('click', async () => {
+              RoleAbilities.checkPlantDoubtTrigger(btn);
               choiceContainer.style.display = 'none';
-              Trust.shift(opt.trustDelta);
-              await showLine(opt.flavor, { meta: 'Fragment' });
+              Trust.shift(options[i].trustDelta);
+              if (options[i].trustDelta < 0) Horror.consequenceMessage('medium');
+              await showLine(options[i].flavor, { meta: 'Fragment' });
               resolve();
             }, { once: true });
-            choiceContainer.appendChild(btn);
           });
         }, 1800);
       });
@@ -1249,6 +1493,7 @@
               choiceContainer.style.display = 'none';
               if (opt.sanityDelta) Player.update({ sanity: Math.max(0, (Player.get().sanity || 75) + opt.sanityDelta) });
               if (opt.trustDelta) Trust.shift(opt.trustDelta);
+              await applyHorrorEffects(opt, ms => new Promise(r => setTimeout(r, ms)));
               if (opt.glitch) {
                 const span = document.createElement('span');
                 textEl.innerHTML = '';
@@ -1477,6 +1722,10 @@
             btn.addEventListener('click', async () => {
               choiceContainer.style.display = 'none';
               opt.effect();
+              // Gate riddle has no wrong answer but each choice carries weight —
+              // a brief bleed + consequence message makes each feel significant
+              Horror.screenBleed(0.4);
+              Horror.consequenceMessage('light');
               await showLine(opt.flavor, { meta: 'The Gate' });
               resolve();
             }, { once: true });
@@ -1863,9 +2112,11 @@
       if (stopButterflies) stopButterflies();
       await Session.setPlayerData({ name: Player.get().name });
 
-      // Mark session as started immediately so latecomers get a clear
-      // rejection instead of joining a game that's already in progress
-      await Session.markStarted();
+      // Delay markStarted by 3s so the 5th player's browser has time to
+      // register their join before the session locks for latecomers —
+      // the race between "5th player joins" and "markStarted fires" was
+      // blocking legitimate 5th players from getting in.
+      setTimeout(() => Session.markStarted(), 3000);
 
       waitingContent.innerHTML = '<p class="narrative-text"><span class="beat">Five chairs were always going to be filled.</span></p>';
       await new Promise(r => setTimeout(r, 2600));
@@ -1980,6 +2231,7 @@
         return;
       }
       Player.setName(name);
+      Horror.init();
       goToScene('scene-lobby');
       AudioManager.play('nameInput');
       runLobby();
