@@ -81,7 +81,12 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(10,10,13,0.35) 0%, rgba(10,10,13,0.88) 75%, rgba(10,10,13,0.97) 100%);
+  background: radial-gradient(ellipse at center, rgba(10,10,13,0.45) 0%, rgba(10,10,13,0.88) 70%, rgba(10,10,13,0.97) 100%);
+}
+
+/* Final Gate has a brighter background image — needs stronger center darkening */
+#scene-finalgate .scene-bg::after {
+  background: radial-gradient(ellipse at center, rgba(10,10,13,0.65) 0%, rgba(10,10,13,0.92) 65%, rgba(10,10,13,0.98) 100%);
 }
 
 .scene-content {
@@ -93,7 +98,17 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2rem;
+  justify-content: center;
+  gap: 1.4rem;
+  padding: 1.2rem 0;
+}
+
+/* Narrative text — no fixed min-height so it never pushes choices off screen */
+.narrative-text {
+  font-family: var(--font-display);
+  font-size: clamp(1.15rem, 2.8vw, 1.6rem);
+  line-height: 1.65;
+  color: var(--text-pale);
 }
 
 /* ---------- TYPOGRAPHY ---------- */
@@ -114,14 +129,6 @@ body {
   color: var(--text-dim);
   line-height: 1.6;
   max-width: 32ch;
-}
-
-.narrative-text {
-  font-family: var(--font-display);
-  font-size: clamp(1.3rem, 3vw, 1.7rem);
-  line-height: 1.7;
-  color: var(--text-pale);
-  min-height: 3em;
 }
 
 .narrative-text .beat {
