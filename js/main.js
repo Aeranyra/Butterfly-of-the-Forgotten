@@ -387,6 +387,8 @@
     const tapHint = document.getElementById('classroom-tap-hint');
     const choiceContainer = document.getElementById('classroom-choices');
 
+    AudioManager.Ambient.classroom(); // muffled student murmurs
+
     let awaitingClick = false;
 
     function showLine(text, { meta, holdForClick = true } = {}) {
@@ -458,6 +460,7 @@
       await wait(1300);
 
       sceneEl.classList.remove('scene-fading-out');
+      AudioManager.Ambient.stop();
       goToScene('scene-hallway');
       AudioManager.play('hallway');
       runHallway();
@@ -593,9 +596,9 @@
       return new Promise(resolve => {
         const panel = document.createElement('div');
         panel.style.cssText = `
-          position: fixed; top: 5%; right: 4%; z-index: 50;
+          position: fixed; top: 5%; left: 4%; z-index: 50;
           background: rgba(10,9,12,0.92); border: 1px solid rgba(176,68,68,0.4);
-          padding: 1rem 1.2rem; max-width: 220px;
+          padding: 1rem 1.2rem; max-width: 200px;
           font-family: 'Jost', sans-serif; font-weight: 300; font-size: 0.8rem;
           color: rgba(232,230,224,0.7); letter-spacing: 0.04em;
         `;
@@ -697,8 +700,15 @@
 
       const promptEl = document.createElement('button');
       promptEl.className = 'menu-option';
-      promptEl.textContent = 'Reach for a memory?';
-      promptEl.style.cssText = 'position:fixed; bottom:18%; left:0; right:0; margin:auto; width:fit-content; opacity:0.6; font-size:0.8rem; z-index:10;';
+      promptEl.textContent = '⟳ Reach for a memory?';
+      promptEl.style.cssText = `
+        position: fixed; top: 4%; left: 50%; transform: translateX(-50%);
+        background: rgba(10,9,12,0.85); border: 1px solid rgba(107,91,122,0.4);
+        color: rgba(155,133,176,0.9); font-family: 'Jost', sans-serif;
+        font-size: 0.75rem; letter-spacing: 0.1em; padding: 0.45rem 1rem;
+        cursor: pointer; z-index: 20; white-space: nowrap;
+        pointer-events: auto;
+      `;
 
       promptEl.addEventListener('click', async () => {
         promptEl.remove();
@@ -768,6 +778,8 @@
     const sceneEl = document.getElementById('scene-hallway');
     const tapHint = document.getElementById('hallway-tap-hint');
     const choiceContainer = document.getElementById('hallway-choices');
+
+    AudioManager.Ambient.hallway(); // distant footsteps
 
     let awaitingClick = false;
 
@@ -869,6 +881,7 @@
       await wait(1300);
 
       sceneEl.classList.remove('scene-fading-out');
+      AudioManager.Ambient.stop();
       goToScene('scene-library');
       AudioManager.play('library');
       runLibrary();
@@ -993,6 +1006,8 @@
     const tapHint = document.getElementById('library-tap-hint');
     const choiceContainer = document.getElementById('library-choices');
 
+    AudioManager.Ambient.library(); // page turning sounds
+
     let awaitingClick = false;
 
     function showLine(text, { meta, holdForClick = true, glitch = false } = {}) {
@@ -1082,6 +1097,7 @@
       await wait(1300);
 
       sceneEl.classList.remove('scene-fading-out');
+      AudioManager.Ambient.stop();
       goToScene('scene-convergence');
       AudioManager.play('library');
       runConvergence();
