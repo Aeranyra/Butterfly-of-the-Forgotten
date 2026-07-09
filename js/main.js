@@ -591,45 +591,63 @@
       if (plantDoubtUsed[roomId]) return Promise.resolve(-1);
 
       const totalUsed = Object.keys(plantDoubtUsed).length;
-      if (totalUsed >= 4) return Promise.resolve(-1); // max 4 uses per session
+      if (totalUsed >= 4) return Promise.resolve(-1);
 
       return new Promise(resolve => {
+        // Hide main choices while Betrayer's private panel is visible
+        if (container) container.style.visibility = 'hidden';
+
         const panel = document.createElement('div');
         panel.style.cssText = `
-          position: fixed; top: 5%; left: 4%; z-index: 50;
-          background: rgba(10,9,12,0.92); border: 1px solid rgba(176,68,68,0.4);
-          padding: 1rem 1.2rem; max-width: 200px;
-          font-family: 'Jost', sans-serif; font-weight: 300; font-size: 0.8rem;
-          color: rgba(232,230,224,0.7); letter-spacing: 0.04em;
+          position: fixed; top: 50%; left: 50%;
+          transform: translate(-50%, -50%);
+          background: rgba(10,9,12,0.96); border: 1px solid rgba(176,68,68,0.5);
+          padding: 1.4rem 1.6rem; width: 88%; max-width: 340px;
+          font-family: 'Jost', sans-serif; font-weight: 300;
+          font-size: 0.85rem; color: rgba(232,230,224,0.8);
+          letter-spacing: 0.04em; z-index: 100;
+          box-shadow: 0 0 40px rgba(176,68,68,0.15);
         `;
 
         const label = document.createElement('p');
         label.textContent = 'Plant Doubt';
-        label.style.cssText = 'color: rgba(176,68,68,0.9); margin-bottom: 0.7rem; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase;';
+        label.style.cssText = 'color: rgba(176,68,68,0.9); margin-bottom: 0.3rem; font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase;';
         panel.appendChild(label);
 
+        const sublabel = document.createElement('p');
+        sublabel.textContent = 'Choose one option to relabel for the others.';
+        sublabel.style.cssText = 'color: rgba(138,135,144,0.7); font-size: 0.72rem; margin-bottom: 1rem; line-height: 1.4;';
+        panel.appendChild(sublabel);
+
         const skipBtn = document.createElement('button');
-        skipBtn.textContent = 'Skip';
-        skipBtn.style.cssText = 'background:none; border:none; color:rgba(138,135,144,0.6); font-family:inherit; font-size:0.75rem; cursor:pointer; display:block; margin-top:0.5rem;';
+        skipBtn.textContent = 'Skip — do nothing';
+        skipBtn.style.cssText = 'background:none; border:none; color:rgba(138,135,144,0.5); font-family:inherit; font-size:0.72rem; cursor:pointer; display:block; margin-top:0.8rem; letter-spacing:0.06em;';
+
+        function dismiss(result) {
+          panel.remove();
+          // Restore main choices
+          if (container) container.style.visibility = 'visible';
+          resolve(result);
+        }
 
         options.forEach((opt, i) => {
           const btn = document.createElement('button');
-          btn.textContent = opt.text;
-          btn.style.cssText = 'display:block; width:100%; background:none; border:1px solid rgba(176,68,68,0.2); color:rgba(232,230,224,0.8); font-family:inherit; font-size:0.78rem; padding:0.35rem 0.6rem; cursor:pointer; margin-bottom:0.4rem; text-align:left;';
+          btn.textContent = opt.text || opt.value || String(opt);
+          btn.style.cssText = 'display:block; width:100%; background:none; border:1px solid rgba(176,68,68,0.25); color:rgba(232,230,224,0.85); font-family:inherit; font-size:0.8rem; padding:0.5rem 0.8rem; cursor:pointer; margin-bottom:0.5rem; text-align:left; transition: border-color 0.2s;';
+          btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'rgba(176,68,68,0.6)'; });
+          btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'rgba(176,68,68,0.25)'; });
           btn.addEventListener('click', async () => {
-            panel.remove();
             plantDoubtUsed[roomId] = true;
 
-            // Alter this option's text to something misleading
             const alterations = [
               'Something you already know',
               'The one that changes nothing',
               'What the academy prefers',
-              'The answer you almost gave'
+              'The answer you almost gave',
+              'What you were going to choose anyway'
             ];
             const alteredText = alterations[Math.floor(Math.random() * alterations.length)];
 
-            // Write to Firebase so other players see the altered label
             try {
               if (typeof Session !== 'undefined' && Session.getCode()) {
                 await Session.plantDoubt(roomId, i, alteredText);
@@ -638,19 +656,18 @@
               console.warn('Plant Doubt Firebase write failed:', e);
             }
 
-            // Cost: small sanity tick for using the power
             Player.update({ sanity: Math.max(0, Player.get().sanity - 3) });
-            resolve(i);
+            dismiss(i);
           }, { once: true });
           panel.appendChild(btn);
         });
 
         panel.appendChild(skipBtn);
-        skipBtn.addEventListener('click', () => { panel.remove(); resolve(-1); }, { once: true });
+        skipBtn.addEventListener('click', () => dismiss(-1), { once: true });
         document.body.appendChild(panel);
 
-        // Auto-dismiss after 8s if no action taken
-        setTimeout(() => { if (panel.parentNode) { panel.remove(); resolve(-1); } }, 8000);
+        // Auto-dismiss after 10s
+        setTimeout(() => { if (panel.parentNode) dismiss(-1); }, 10000);
       });
     }
 
@@ -947,7 +964,7 @@
             { text: 'Stay still', flavor: 'You wait. Eventually the hallway moves instead — or you do, and don\'t notice.' }
           ];
 
-          choiceContainer.style.display = 'flex';
+          choiceContainer.style.display = 'none'; // hidden until Plant Doubt resolves
           choiceContainer.innerHTML = '';
 
           const buttons = [];
@@ -955,16 +972,21 @@
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt.text;
+            btn.style.pointerEvents = 'none'; // not interactive yet
             buttons.push(btn);
             choiceContainer.appendChild(btn);
           });
 
-          // Plant Doubt: show Betrayer the secret panel before buttons are interactive
+          // Plant Doubt: Betrayer sees panel first, picks which option to poison
           await RoleAbilities.showPlantDoubt('hallway', options, choiceContainer);
-          // Apply any existing Plant Doubt from Firebase for non-Betrayer players
+          // Apply any Plant Doubt from Firebase (alters labels for non-Betrayer)
           await RoleAbilities.applyPlantDoubt('hallway', buttons);
           // Borrowed Memory: show Forgotten the memory prompt
           RoleAbilities.showBorrowedMemory('hallway', textEl, metaEl);
+
+          // NOW show the (potentially poisoned) buttons and make them interactive
+          choiceContainer.style.display = 'flex';
+          buttons.forEach(btn => { btn.style.pointerEvents = 'auto'; });
 
           buttons.forEach((btn, i) => {
             btn.addEventListener('click', async () => {
