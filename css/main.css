@@ -103,11 +103,13 @@ body {
   padding: 1.2rem 0;
 }
 
-/* Narrative text — no fixed min-height so it never pushes choices off screen */
+/* Narrative text — no fixed min-height so it never pushes choices off screen.
+   Sized for both mobile (360px) and desktop (1440px+) — clamp minimum is
+   deliberately readable on phone, maximum caps for desktop legibility. */
 .narrative-text {
   font-family: var(--font-display);
-  font-size: clamp(1.15rem, 2.8vw, 1.6rem);
-  line-height: 1.65;
+  font-size: clamp(1.25rem, 3.2vw, 1.65rem);
+  line-height: 1.68;
   color: var(--text-pale);
 }
 
@@ -115,7 +117,7 @@ body {
 
 .title-mark {
   font-family: var(--font-display);
-  font-size: clamp(2.4rem, 6vw, 4.2rem);
+  font-size: clamp(2.2rem, 5vw, 3.8rem);
   font-weight: 500;
   letter-spacing: 0.02em;
   color: var(--text-pale);
@@ -125,10 +127,10 @@ body {
 .quote-line {
   font-family: var(--font-display);
   font-style: italic;
-  font-size: clamp(1.1rem, 2.4vw, 1.5rem);
+  font-size: clamp(1.15rem, 2.2vw, 1.45rem);
   color: var(--text-dim);
   line-height: 1.6;
-  max-width: 32ch;
+  max-width: 36ch;
 }
 
 .narrative-text .beat {
@@ -608,15 +610,62 @@ body {
   pointer-events: auto;
 }
 
-/* ---------- RESPONSIVE ---------- */
+/* ---------- RESPONSIVE — MOBILE ---------- */
 
 @media (max-width: 480px) {
   .scene-content {
-    width: 92%;
-    gap: 1.5rem;
+    width: 94%;
+    gap: 1.2rem;
+    padding: 1rem 0;
   }
   .choice-btn {
-    padding: 0.7rem 1.1rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+  }
+  .narrative-text {
+    font-size: 1.25rem;
+  }
+  .quote-line {
+    font-size: 1.15rem;
+  }
+  .title-mark {
+    font-size: 2.2rem;
+  }
+  .room-event-meta {
+    font-size: 0.68rem;
+  }
+}
+
+/* ---------- RESPONSIVE — DESKTOP ---------- */
+
+@media (min-width: 1024px) {
+  .scene-content {
+    max-width: 720px;
+    gap: 1.8rem;
+  }
+  .choice-btn {
+    padding: 0.95rem 1.6rem;
+    font-size: 1.05rem;
+  }
+  .narrative-text {
+    font-size: 1.65rem;
+    line-height: 1.72;
+  }
+  .quote-line {
+    font-size: 1.45rem;
+    max-width: 40ch;
+  }
+  .title-mark {
+    font-size: 3.8rem;
+  }
+  /* On desktop, cursor trail is more visible — slightly larger */
+  .butterfly-cursor {
+    width: 26px;
+    height: 26px;
+  }
+  .butterfly-cursor-trail {
+    width: 18px;
+    height: 18px;
   }
 }
 
