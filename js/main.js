@@ -532,7 +532,7 @@
             { text: 'Say nothing', trustDelta: 0, flavor: 'You let it go. The seat count stays wrong, unspoken.' }
           ];
 
-          choiceContainer.style.display = 'flex';
+          choiceContainer.style.display = 'none'; // hidden until Plant Doubt resolves
           choiceContainer.innerHTML = '';
 
           const buttons = [];
@@ -540,6 +540,19 @@
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt.text;
+            btn.style.pointerEvents = 'none';
+            choiceContainer.appendChild(btn);
+            buttons.push(btn);
+          });
+
+          // Wire ALL role abilities into this choice window
+          await RoleAbilities.wireChoiceWindow('classroom', { options, container: choiceContainer, buttons, textEl, metaEl });
+
+          // Now show and make interactive
+          choiceContainer.style.display = 'flex';
+          buttons.forEach((btn, i) => {
+            btn.style.pointerEvents = 'auto';
+            const opt = options[i];
             btn.addEventListener('click', async () => {
               choiceContainer.style.display = 'none';
               RoleAbilities.checkPlantDoubtTrigger(btn);
@@ -556,14 +569,7 @@
               await showLine(opt.flavor, { meta: 'Quiet Question' });
               resolve();
             }, { once: true });
-            choiceContainer.appendChild(btn);
-            buttons.push(btn);
           });
-
-          // Wire Plant Doubt + Borrowed Memory for Classroom
-          await RoleAbilities.showPlantDoubt('classroom', options, choiceContainer);
-          await RoleAbilities.applyPlantDoubt('classroom', buttons);
-          RoleAbilities.showBorrowedMemory('classroom', textEl, metaEl);
         }, 1800);
       });
     }
@@ -764,7 +770,265 @@
       // borrowedMemoryUsed is per-room so resets each room
     }
 
-    return { showPlantDoubt, applyPlantDoubt, checkPlantDoubtTrigger, showBorrowedMemory };
+    // ── OBSERVER LIVE TALLY ──────────────────────────────────────────
+    // During any choice window, Observer privately sees how many players
+    // have submitted so far (not what they chose). Costs a small sanity
+    // tick to look — knowing has a price.
+    function showObserverTally(roomId, container) {
+      const role = Player.get().role;
+      if (role !== 'observer') return () => {};
+
+      const tallyEl = document.createElement('div');
+      tallyEl.style.cssText = `
+        position: fixed; bottom: 5%; right: 4%; z-index: 20;
+        background: rgba(10,9,12,0.88); border: 1px solid rgba(107,91,122,0.35);
+        padding: 0.5rem 0.85rem; font-family: 'Jost', sans-serif;
+        font-size: 0.72rem; color: rgba(155,133,176,0.8);
+        letter-spacing: 0.1em; text-transform: uppercase; pointer-events: none;
+      `;
+      tallyEl.textContent = '0 / 5 have chosen';
+      document.body.appendChild(tallyEl);
+
+      // Small sanity cost for watching — same as Observer truth-vision cost
+      Player.update({ sanity: Math.max(0, Player.get().sanity - 2) });
+
+      let stopTally = () => {};
+      try {
+        if (typeof Session !== 'undefined' && Session.getCode()) {
+          stopTally = Session.onVoteUpdate(roomId, count => {
+            tallyEl.textContent = `${count} / 5 have chosen`;
+          });
+          // Submit our own vote when player clicks a choice
+          if (container) {
+            container.addEventListener('click', () => {
+              Session.submitVote(roomId).catch(() => {});
+            }, { once: true });
+          }
+        }
+      } catch(e) {}
+
+      // Auto-remove when choices disappear
+      setTimeout(() => {
+        stopTally();
+        if (tallyEl.parentNode) tallyEl.remove();
+      }, 20000);
+
+      return () => { stopTally(); if (tallyEl.parentNode) tallyEl.remove(); };
+    }
+
+    // ── WANDERER GROUP CHECK ──────────────────────────────────────────
+    // Once per session, either Wanderer can call a group check.
+    // All players are notified; anyone who was Plant Doubted sees a
+    // private "your last choice may have been altered" message.
+    let groupCheckUsed = false;
+
+    function showWandererCheck(roomId, textEl, metaEl) {
+      const role = Player.get().role;
+      if (role !== 'wanderer') return;
+      if (groupCheckUsed) return;
+
+      const btn = document.createElement('button');
+      btn.textContent = '⚑ Call a group check';
+      btn.style.cssText = `
+        position: fixed; bottom: 5%; left: 50%; transform: translateX(-50%);
+        background: rgba(10,9,12,0.88); border: 1px solid rgba(232,230,224,0.2);
+        color: rgba(232,230,224,0.65); font-family: 'Jost', sans-serif;
+        font-size: 0.72rem; letter-spacing: 0.1em; padding: 0.45rem 1rem;
+        cursor: pointer; z-index: 20; white-space: nowrap;
+      `;
+
+      btn.addEventListener('click', async () => {
+        btn.remove();
+        groupCheckUsed = true;
+
+        // Notify all players via Firebase
+        try {
+          if (typeof Session !== 'undefined' && Session.getCode()) {
+            await Session.requestGroupCheck(roomId);
+          }
+        } catch(e) {}
+
+        // Show result to the calling Wanderer
+        const oldMeta = metaEl.textContent;
+        metaEl.textContent = 'Group Check';
+        textEl.innerHTML = '<span class="beat">You asked the group to confirm. The academy noted the question.</span>';
+        await new Promise(r => setTimeout(r, 2500));
+        metaEl.textContent = oldMeta;
+      }, { once: true });
+
+      document.body.appendChild(btn);
+      setTimeout(() => { if (btn.parentNode) btn.remove(); }, 15000);
+
+      // Listen for OTHER players' group check requests
+      try {
+        if (typeof Session !== 'undefined' && Session.getCode()) {
+          Session.onGroupCheck(roomId, () => {
+            // If this player was Plant Doubted, show them the paranoia message
+            const lastBtn = document.querySelector('[data-real-text]');
+            if (lastBtn) {
+              Horror.consequenceMessage('medium');
+              GlitchDialogue.render(textEl, 'Did you mean to choose that?', Player.get().sanity);
+            }
+          });
+        }
+      } catch(e) {}
+    }
+
+    // ── FORGOTTEN ANONYMOUS SHARE ─────────────────────────────────────
+    // After Borrowed Memory fires, Forgotten can anonymously push their
+    // fragment into a shared session message visible to all players.
+    function offerFragmentShare(fragmentText) {
+      const shareBtn = document.createElement('button');
+      shareBtn.textContent = 'Share this anonymously?';
+      shareBtn.style.cssText = `
+        position: fixed; bottom: 12%; left: 50%; transform: translateX(-50%);
+        background: rgba(10,9,12,0.9); border: 1px solid rgba(107,91,122,0.3);
+        color: rgba(155,133,176,0.7); font-family: 'Jost', sans-serif;
+        font-size: 0.72rem; letter-spacing: 0.08em; padding: 0.4rem 0.9rem;
+        cursor: pointer; z-index: 25; white-space: nowrap;
+      `;
+
+      shareBtn.addEventListener('click', async () => {
+        shareBtn.remove();
+        try {
+          if (typeof Session !== 'undefined' && Session.getCode()) {
+            await Session.shareFragment(fragmentText);
+          }
+        } catch(e) {}
+      }, { once: true });
+
+      document.body.appendChild(shareBtn);
+      setTimeout(() => { if (shareBtn.parentNode) shareBtn.remove(); }, 8000);
+    }
+
+    // Wire shared fragment display for all players
+    function listenForSharedFragments(textEl, metaEl) {
+      try {
+        if (typeof Session === 'undefined' || !Session.getCode()) return;
+        let lastTimestamp = 0;
+        Session.onSharedFragment(async (data) => {
+          if (!data || data.timestamp <= lastTimestamp) return;
+          lastTimestamp = data.timestamp;
+          // Show as a glitched academy message — source is never revealed
+          const oldMeta = metaEl ? metaEl.textContent : '';
+          if (metaEl) metaEl.textContent = 'Academy Transmission';
+          if (textEl) {
+            const span = document.createElement('span');
+            textEl.innerHTML = '';
+            textEl.appendChild(span);
+            GlitchDialogue.render(span, data.text, Player.get().sanity, { persist: false });
+          }
+          await new Promise(r => setTimeout(r, 3500));
+          if (metaEl) metaEl.textContent = oldMeta;
+        });
+      } catch(e) {}
+    }
+
+    // ── BETRAYER POST-VOTE DISPUTE ────────────────────────────────────
+    // After Group Decision resolves, Betrayer privately sees the real
+    // tally and can dispute the outcome, anonymously shifting trust.
+    async function showBetrayerDispute(roomId, resolvedChoice) {
+      const role = Player.get().role;
+      if (role !== 'betrayer') return;
+
+      let realCount = 0;
+      try {
+        if (typeof Session !== 'undefined' && Session.getCode()) {
+          realCount = await Session.getVoteCount(roomId);
+        }
+      } catch(e) {}
+
+      const panel = document.createElement('div');
+      panel.style.cssText = `
+        position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%);
+        background: rgba(10,9,12,0.94); border: 1px solid rgba(176,68,68,0.3);
+        padding: 0.8rem 1.2rem; font-family: 'Jost', sans-serif;
+        font-size: 0.75rem; color: rgba(232,230,224,0.7);
+        letter-spacing: 0.05em; z-index: 30; text-align: center;
+        display: flex; gap: 1rem; align-items: center;
+      `;
+
+      const info = document.createElement('span');
+      info.textContent = `${realCount} voted. Dispute?`;
+      info.style.color = 'rgba(176,68,68,0.8)';
+
+      const disputeBtn = document.createElement('button');
+      disputeBtn.textContent = 'Yes';
+      disputeBtn.style.cssText = 'background:none; border:1px solid rgba(176,68,68,0.4); color:rgba(176,68,68,0.9); font-family:inherit; font-size:0.72rem; padding:0.25rem 0.6rem; cursor:pointer;';
+
+      const skipBtn = document.createElement('button');
+      skipBtn.textContent = 'No';
+      skipBtn.style.cssText = 'background:none; border:none; color:rgba(138,135,144,0.5); font-family:inherit; font-size:0.72rem; cursor:pointer;';
+
+      panel.appendChild(info);
+      panel.appendChild(disputeBtn);
+      panel.appendChild(skipBtn);
+      document.body.appendChild(panel);
+
+      disputeBtn.addEventListener('click', async () => {
+        panel.remove();
+        try {
+          if (typeof Session !== 'undefined' && Session.getCode()) {
+            await Session.disputeResult(roomId);
+            Trust.shift(-2); // dispute costs trust
+          }
+        } catch(e) {}
+      }, { once: true });
+
+      skipBtn.addEventListener('click', () => panel.remove(), { once: true });
+      setTimeout(() => { if (panel.parentNode) panel.remove(); }, 8000);
+
+      // All non-Betrayer players: if dispute fires, show anonymous message
+      try {
+        if (typeof Session !== 'undefined' && Session.getCode()) {
+          Session.onDispute(roomId, () => {
+            Horror.consequenceMessage('medium');
+          });
+        }
+      } catch(e) {}
+    }
+
+    return {
+      showPlantDoubt,
+      applyPlantDoubt,
+      checkPlantDoubtTrigger,
+      showBorrowedMemory,
+      showObserverTally,
+      showWandererCheck,
+      offerFragmentShare,
+      listenForSharedFragments,
+      showBetrayerDispute,
+      /**
+       * Wire ALL role abilities into a choice window at once.
+       * Call this after showing choices, passing the room id,
+       * containers, and buttons. Returns a cleanup function.
+       */
+      async wireChoiceWindow(roomId, { options, container, buttons, textEl, metaEl }) {
+        // Betrayer: Plant Doubt panel (hides choices while active)
+        await showPlantDoubt(roomId, options, container);
+        // Non-Betrayer: apply any Plant Doubt already written
+        await applyPlantDoubt(roomId, buttons);
+        // Observer: live tally indicator
+        const stopTally = showObserverTally(roomId, container);
+        // Wanderer: group check button
+        showWandererCheck(roomId, textEl, metaEl);
+        // Forgotten: borrowed memory button
+        showBorrowedMemory(roomId, textEl, metaEl);
+        // Forgotten: listen for shared fragments from other players
+        if (textEl && metaEl) listenForSharedFragments(textEl, metaEl);
+
+        // Betrayer: after any button is clicked, offer the dispute panel
+        if (buttons && Player.get().role === 'betrayer') {
+          buttons.forEach(btn => {
+            btn.addEventListener('click', () => {
+              setTimeout(() => showBetrayerDispute(roomId, btn.textContent), 1200);
+            }, { once: true });
+          });
+        }
+
+        return stopTally;
+      }
+    };
   })();
 
   // ====================================================================
@@ -977,12 +1241,8 @@
             choiceContainer.appendChild(btn);
           });
 
-          // Plant Doubt: Betrayer sees panel first, picks which option to poison
-          await RoleAbilities.showPlantDoubt('hallway', options, choiceContainer);
-          // Apply any Plant Doubt from Firebase (alters labels for non-Betrayer)
-          await RoleAbilities.applyPlantDoubt('hallway', buttons);
-          // Borrowed Memory: show Forgotten the memory prompt
-          RoleAbilities.showBorrowedMemory('hallway', textEl, metaEl);
+          // Wire ALL role abilities into this choice window
+          await RoleAbilities.wireChoiceWindow('hallway', { options, container: choiceContainer, buttons, textEl, metaEl });
 
           // NOW show the (potentially poisoned) buttons and make them interactive
           choiceContainer.style.display = 'flex';
@@ -1228,7 +1488,7 @@
             { text: 'Say you found nothing', trustDelta: -3, flavor: 'You lie. The book is still open on the table behind you.' }
           ];
 
-          choiceContainer.style.display = 'flex';
+          choiceContainer.style.display = 'none';
           choiceContainer.innerHTML = '';
 
           const buttons = [];
@@ -1236,15 +1496,16 @@
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt.text;
+            btn.style.pointerEvents = 'none';
             buttons.push(btn);
             choiceContainer.appendChild(btn);
           });
 
-          await RoleAbilities.showPlantDoubt('library', options, choiceContainer);
-          await RoleAbilities.applyPlantDoubt('library', buttons);
-          RoleAbilities.showBorrowedMemory('library', textEl, metaEl);
+          await RoleAbilities.wireChoiceWindow('library', { options, container: choiceContainer, buttons, textEl, metaEl });
 
+          choiceContainer.style.display = 'flex';
           buttons.forEach((btn, i) => {
+            btn.style.pointerEvents = 'auto';
             btn.addEventListener('click', async () => {
               RoleAbilities.checkPlantDoubtTrigger(btn);
               choiceContainer.style.display = 'none';
@@ -1350,7 +1611,7 @@
           { value: 'unsure', text: 'I don\'t know what I\'d be leaving.', flavor: 'The honest answer. The academy seems to prefer it.' }
         ];
 
-        choiceContainer.style.display = 'flex';
+        choiceContainer.style.display = 'none';
         choiceContainer.innerHTML = '';
 
         const buttons = [];
@@ -1358,20 +1619,25 @@
           const btn = document.createElement('button');
           btn.className = 'choice-btn';
           btn.textContent = opt.text;
+          btn.style.pointerEvents = 'none';
+          choiceContainer.appendChild(btn);
+          buttons.push(btn);
+        });
+
+        // Wire ALL role abilities into this choice window
+        await RoleAbilities.wireChoiceWindow('convergence', { options, container: choiceContainer, buttons, textEl, metaEl });
+
+        choiceContainer.style.display = 'flex';
+        buttons.forEach((btn, i) => {
+          btn.style.pointerEvents = 'auto';
+          const opt = options[i];
           btn.addEventListener('click', async () => {
             choiceContainer.style.display = 'none';
             RoleAbilities.checkPlantDoubtTrigger(btn);
             await showLine(opt.flavor, { meta: 'The Question' });
             resolve(opt.value);
           }, { once: true });
-          choiceContainer.appendChild(btn);
-          buttons.push(btn);
         });
-
-        // Wire Plant Doubt + Borrowed Memory for Convergence
-        await RoleAbilities.showPlantDoubt('convergence', options, choiceContainer);
-        await RoleAbilities.applyPlantDoubt('convergence', buttons);
-        RoleAbilities.showBorrowedMemory('convergence', textEl, metaEl);
       });
     }
 
@@ -1503,7 +1769,7 @@
             { text: 'I don\'t know, and I\'m done pretending I do', sanityDelta: 1, flavor: 'No one disagrees with you. That might be the most honest thing said all day.' }
           ];
 
-          choiceContainer.style.display = 'flex';
+          choiceContainer.style.display = 'none';
           choiceContainer.innerHTML = '';
 
           const buttons = [];
@@ -1511,6 +1777,18 @@
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt.text;
+            btn.style.pointerEvents = 'none';
+            choiceContainer.appendChild(btn);
+            buttons.push(btn);
+          });
+
+          // Wire ALL role abilities into this choice window
+          await RoleAbilities.wireChoiceWindow('clocktower', { options, container: choiceContainer, buttons, textEl, metaEl });
+
+          choiceContainer.style.display = 'flex';
+          buttons.forEach((btn, i) => {
+            btn.style.pointerEvents = 'auto';
+            const opt = options[i];
             btn.addEventListener('click', async () => {
               choiceContainer.style.display = 'none';
               RoleAbilities.checkPlantDoubtTrigger(btn);
@@ -1521,14 +1799,7 @@
               await showLine(opt.flavor, { meta: 'Final Alignment' });
               resolve();
             }, { once: true });
-            choiceContainer.appendChild(btn);
-            buttons.push(btn);
           });
-
-          // Wire Plant Doubt + Borrowed Memory for Clock Tower
-          await RoleAbilities.showPlantDoubt('clocktower', options, choiceContainer);
-          await RoleAbilities.applyPlantDoubt('clocktower', buttons);
-          RoleAbilities.showBorrowedMemory('clocktower', textEl, metaEl);
         }, 1800);
       });
     }
@@ -2189,6 +2460,24 @@
 
       await assignRolesIfHost();
 
+      // Private role hint — one line, shown only to this player, before
+      // Classroom starts. Enough to know what they are without naming it
+      // as a game mechanic. Glitched to feel like it came from the academy.
+      const ROLE_HINTS = {
+        wanderer: 'Something is missing. You are not sure what.',
+        betrayer: 'You already know something the others do not.',
+        observer: 'You will see things others miss. It will cost you.',
+        forgotten: 'Something about you is wrong. You cannot place it.'
+      };
+      const role = Player.get().role;
+      const hint = ROLE_HINTS[role] || ROLE_HINTS.wanderer;
+      const hintEl = document.createElement('p');
+      hintEl.className = 'narrative-text';
+      waitingContent.innerHTML = '';
+      waitingContent.appendChild(hintEl);
+      GlitchDialogue.render(hintEl, hint, Player.get().sanity);
+      await new Promise(r => setTimeout(r, 2800));
+
       Trust.init();
       sceneEl.classList.add('scene-fading-out');
       await new Promise(r => setTimeout(r, 1300));
@@ -2246,12 +2535,17 @@
 
     document.getElementById('btn-lobby-create').addEventListener('click', async () => {
       errorEl.classList.remove('visible');
+      const btn = document.getElementById('btn-lobby-create');
+      btn.textContent = 'Connecting to the academy…';
+      btn.style.opacity = '0.5';
       choiceContent.querySelectorAll('button').forEach(b => b.disabled = true);
       try {
         const code = await Session.create();
         enterWaitingRoom(code);
       } catch (e) {
         console.error('Session.create() failed:', e);
+        btn.textContent = 'Begin a new session';
+        btn.style.opacity = '1';
         showError('Could not reach the academy: ' + (e && e.message ? e.message : 'unknown error') + '. Check your connection and try again.');
         choiceContent.querySelectorAll('button').forEach(b => b.disabled = false);
       }
@@ -2266,9 +2560,14 @@
       const code = document.getElementById('lobby-code-field').value.trim();
       if (!code) return;
       errorEl.classList.remove('visible');
+      const btn = document.getElementById('btn-lobby-join-confirm');
+      btn.textContent = 'Entering…';
+      btn.disabled = true;
 
       const result = await Session.join(code);
       if (!result.ok) {
+        btn.textContent = 'Enter';
+        btn.disabled = false;
         showError(
           result.reason === 'full' ? 'That session already has five. The academy will not allow more.' :
           result.reason === 'started' ? 'That session has already begun. The academy does not allow late arrivals.' :

@@ -98,6 +98,13 @@ const AudioManager = (() => {
   function unlock(initialTrack) {
     if (unlocked) return;
     unlocked = true;
+    // Create the shared AudioContext now, after user gesture, so it's
+    // not suspended when ambient sounds need it later in the rooms.
+    if (!playStatic._ctx) {
+      try {
+        playStatic._ctx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch(e) {}
+    }
     if (initialTrack) play(initialTrack);
   }
 
@@ -133,18 +140,23 @@ const AudioManager = (() => {
   /**
    * AMBIENT SOUNDS
    * Procedural ambient audio for each room — no extra assets needed.
+   * Shares the same AudioContext as playStatic to avoid the mobile
+   * "suspended context before user gesture" silent failure.
    * Returns a stop function to cancel the ambient loop.
    */
   const Ambient = (() => {
-    let activeCtx = null;
     let activeNodes = [];
     let stopFn = null;
 
     function _getCtx() {
-      if (!activeCtx || activeCtx.state === 'closed') {
-        activeCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // Reuse the same context as playStatic — already resumed by user gesture
+      if (!playStatic._ctx) {
+        playStatic._ctx = new (window.AudioContext || window.webkitAudioContext)();
       }
-      return activeCtx;
+      const ctx = playStatic._ctx;
+      // Resume if suspended (mobile browsers suspend until user gesture)
+      if (ctx.state === 'suspended') ctx.resume();
+      return ctx;
     }
 
     function _stopAll() {
@@ -153,119 +165,99 @@ const AudioManager = (() => {
       if (stopFn) { stopFn(); stopFn = null; }
     }
 
+    function _noise(ctx, durationSec, filter, gainVal, filterFreq, filterType = 'bandpass', Q = 1) {
+      try {
+        const buf = ctx.createBuffer(1, ctx.sampleRate * durationSec, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const f = ctx.createBiquadFilter();
+        f.type = filterType;
+        f.frequency.value = filterFreq;
+        if (Q) f.Q.value = Q;
+        const g = ctx.createGain();
+        g.gain.value = gainVal;
+        src.connect(f); f.connect(g); g.connect(ctx.destination);
+        src.start();
+        activeNodes.push(src);
+        return src;
+      } catch(e) { return null; }
+    }
+
     /**
-     * Classroom: muffled student murmurs — low-frequency filtered noise
-     * that sounds like distant voices in another room.
+     * Classroom: muffled student murmurs
      */
     function classroom() {
       _stopAll();
-      try {
+      const interval = setInterval(() => {
         const ctx = _getCtx();
-        const interval = setInterval(() => {
-          // Random short burst of filtered noise = muffled voice
-          const buf = ctx.createBuffer(1, ctx.sampleRate * 0.18, ctx.sampleRate);
-          const data = buf.getChannelData(0);
-          for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
-          const src = ctx.createBufferSource();
-          src.buffer = buf;
-          // Bandpass around 300-600hz = muffled speech frequency
-          const filter = ctx.createBiquadFilter();
-          filter.type = 'bandpass';
-          filter.frequency.value = 300 + Math.random() * 300;
-          filter.Q.value = 0.8;
-          const gain = ctx.createGain();
-          gain.gain.value = 0.045 + Math.random() * 0.03;
-          src.connect(filter);
-          filter.connect(gain);
-          gain.connect(ctx.destination);
-          src.start();
-          activeNodes.push(src);
-        }, 800 + Math.random() * 1200);
-        stopFn = () => clearInterval(interval);
-      } catch(e) {}
+        _noise(ctx, 0.18, true, 0.04 + Math.random() * 0.03,
+          300 + Math.random() * 300, 'bandpass', 0.8);
+      }, 900 + Math.random() * 1100);
+      stopFn = () => clearInterval(interval);
     }
 
     /**
-     * Library: page turning — a short crisp noise burst every few seconds,
-     * pitched to sound like paper rather than static.
+     * Library: page turning sounds
      */
     function library() {
       _stopAll();
-      try {
+      function turnPage() {
         const ctx = _getCtx();
-        function turnPage() {
-          const dur = 0.08 + Math.random() * 0.06;
-          const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
-          const data = buf.getChannelData(0);
-          for (let i = 0; i < data.length; i++) {
-            // Envelope: quick attack, fast decay — crisp page sound
-            const env = Math.sin((i / data.length) * Math.PI);
-            data[i] = (Math.random() * 2 - 1) * env;
-          }
-          const src = ctx.createBufferSource();
-          src.buffer = buf;
-          const filter = ctx.createBiquadFilter();
-          filter.type = 'highpass';
-          filter.frequency.value = 2000; // paper = high frequency
-          const gain = ctx.createGain();
-          gain.gain.value = 0.12 + Math.random() * 0.08;
-          src.connect(filter);
-          filter.connect(gain);
-          gain.connect(ctx.destination);
-          src.start();
-          activeNodes.push(src);
-          // Occasionally a second page turn follows quickly
-          if (Math.random() < 0.35) {
-            setTimeout(turnPage, 120 + Math.random() * 180);
-          }
+        const dur = 0.08 + Math.random() * 0.06;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+          const env = Math.sin((i / data.length) * Math.PI);
+          data[i] = (Math.random() * 2 - 1) * env;
         }
-        const interval = setInterval(turnPage, 3000 + Math.random() * 4000);
-        turnPage(); // one immediately
-        stopFn = () => clearInterval(interval);
-      } catch(e) {}
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const f = ctx.createBiquadFilter();
+        f.type = 'highpass'; f.frequency.value = 2000;
+        const g = ctx.createGain();
+        g.gain.value = 0.15 + Math.random() * 0.1;
+        src.connect(f); f.connect(g); g.connect(ctx.destination);
+        src.start();
+        activeNodes.push(src);
+        if (Math.random() < 0.35) setTimeout(turnPage, 130 + Math.random() * 160);
+      }
+      turnPage();
+      const interval = setInterval(turnPage, 3500 + Math.random() * 3500);
+      stopFn = () => clearInterval(interval);
     }
 
     /**
-     * Hallway: distant footsteps — low-frequency thumps with slight reverb,
-     * irregular timing so they feel like someone else walking, not a loop.
+     * Hallway: distant footsteps
      */
     function hallway() {
       _stopAll();
-      try {
+      function step() {
         const ctx = _getCtx();
-        function step() {
-          const buf = ctx.createBuffer(1, ctx.sampleRate * 0.12, ctx.sampleRate);
-          const data = buf.getChannelData(0);
-          for (let i = 0; i < data.length; i++) {
-            const env = Math.exp(-i / (data.length * 0.3));
-            data[i] = (Math.random() * 2 - 1) * env;
-          }
-          const src = ctx.createBufferSource();
-          src.buffer = buf;
-          const filter = ctx.createBiquadFilter();
-          filter.type = 'lowpass';
-          filter.frequency.value = 180 + Math.random() * 80; // footstep = low thud
-          const gain = ctx.createGain();
-          gain.gain.value = 0.18 + Math.random() * 0.1;
-          src.connect(filter);
-          filter.connect(gain);
-          gain.connect(ctx.destination);
-          src.start();
-          activeNodes.push(src);
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.14, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+          const env = Math.exp(-i / (data.length * 0.25));
+          data[i] = (Math.random() * 2 - 1) * env;
         }
-        // Walk pattern: 2-4 steps then a pause
-        function walkCycle() {
-          const stepCount = 2 + Math.floor(Math.random() * 3);
-          let delay = 0;
-          for (let i = 0; i < stepCount; i++) {
-            setTimeout(step, delay);
-            delay += 380 + Math.random() * 200;
-          }
-        }
-        walkCycle();
-        const interval = setInterval(walkCycle, 5000 + Math.random() * 4000);
-        stopFn = () => clearInterval(interval);
-      } catch(e) {}
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const f = ctx.createBiquadFilter();
+        f.type = 'lowpass'; f.frequency.value = 160 + Math.random() * 80;
+        const g = ctx.createGain();
+        g.gain.value = 0.22 + Math.random() * 0.1;
+        src.connect(f); f.connect(g); g.connect(ctx.destination);
+        src.start();
+        activeNodes.push(src);
+      }
+      function walkCycle() {
+        const count = 2 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < count; i++) setTimeout(step, i * (400 + Math.random() * 180));
+      }
+      walkCycle();
+      const interval = setInterval(walkCycle, 5000 + Math.random() * 4000);
+      stopFn = () => clearInterval(interval);
     }
 
     function stop() { _stopAll(); }

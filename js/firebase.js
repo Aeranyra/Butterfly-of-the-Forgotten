@@ -272,6 +272,88 @@ const Session = (() => {
     return fragments[Math.floor(Math.random() * fragments.length)];
   }
 
+  /**
+   * OBSERVER TALLY — writes this player's vote submission flag so
+   * Observer can read how many have submitted (not what they chose).
+   */
+  function submitVote(roomId) {
+    if (!sessionRef || !playerId) return Promise.resolve();
+    return sessionRef.child(`votes/${roomId}/${playerId}`).set(true);
+  }
+
+  function getVoteCount(roomId) {
+    if (!sessionRef) return Promise.resolve(0);
+    return sessionRef.child(`votes/${roomId}`).once('value')
+      .then(snap => snap.exists() ? Object.keys(snap.val()).length : 0);
+  }
+
+  function onVoteUpdate(roomId, callback) {
+    if (!sessionRef) return () => {};
+    const ref = sessionRef.child(`votes/${roomId}`);
+    ref.on('value', snap => {
+      callback(snap.exists() ? Object.keys(snap.val()).length : 0);
+    });
+    return () => ref.off('value');
+  }
+
+  /**
+   * WANDERER GROUP CHECK — writes a check request to the session.
+   * All players are notified; anyone who was Plant Doubted sees a private
+   * "your last choice may have been altered" message.
+   */
+  function requestGroupCheck(roomId) {
+    if (!sessionRef || !playerId) return Promise.resolve();
+    return sessionRef.child(`groupCheck/${roomId}`).set({
+      requestedBy: playerId,
+      timestamp: Date.now()
+    });
+  }
+
+  function onGroupCheck(roomId, callback) {
+    if (!sessionRef) return () => {};
+    const ref = sessionRef.child(`groupCheck/${roomId}`);
+    ref.on('value', snap => { if (snap.exists()) callback(snap.val()); });
+    return () => ref.off('value');
+  }
+
+  /**
+   * FORGOTTEN ANONYMOUS SHARE — pushes a fragment into a shared
+   * "academy message" path visible to all players briefly.
+   * Source player ID is never written — truly anonymous.
+   */
+  function shareFragment(text) {
+    if (!sessionRef) return Promise.resolve();
+    return sessionRef.child('sharedFragment').set({
+      text,
+      timestamp: Date.now()
+    });
+  }
+
+  function onSharedFragment(callback) {
+    if (!sessionRef) return () => {};
+    const ref = sessionRef.child('sharedFragment');
+    ref.on('value', snap => { if (snap.exists()) callback(snap.val()); });
+    return () => ref.off('value');
+  }
+
+  /**
+   * BETRAYER DISPUTE — anonymously disputes the last group decision,
+   * nudging trust. Source is never written.
+   */
+  function disputeResult(roomId) {
+    if (!sessionRef) return Promise.resolve();
+    return sessionRef.child(`dispute/${roomId}`).set({
+      timestamp: Date.now()
+    });
+  }
+
+  function onDispute(roomId, callback) {
+    if (!sessionRef) return () => {};
+    const ref = sessionRef.child(`dispute/${roomId}`);
+    ref.on('value', snap => { if (snap.exists()) callback(); });
+    return () => ref.off('value');
+  }
+
   return {
     create,
     join,
@@ -284,6 +366,15 @@ const Session = (() => {
     plantDoubt,
     getPlantDoubt,
     borrowMemory,
-    getPlayerCount
+    getPlayerCount,
+    submitVote,
+    getVoteCount,
+    onVoteUpdate,
+    requestGroupCheck,
+    onGroupCheck,
+    shareFragment,
+    onSharedFragment,
+    disputeResult,
+    onDispute
   };
 })();
