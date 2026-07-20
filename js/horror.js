@@ -24,10 +24,10 @@ const Horror = (() => {
     bleedEl.style.cssText = `
       position: fixed; inset: 0; pointer-events: none; z-index: 999;
       background: radial-gradient(ellipse at center,
-        transparent 40%,
-        rgba(176, 68, 68, 0) 55%,
-        rgba(176, 68, 68, 0.35) 80%,
-        rgba(176, 68, 68, 0.55) 100%);
+        transparent 50%,
+        rgba(176, 68, 68, 0) 62%,
+        rgba(176, 68, 68, 0.2) 82%,
+        rgba(176, 68, 68, 0.38) 100%);
       opacity: 0; transition: opacity 0.4s ease;
     `;
     document.body.appendChild(bleedEl);
@@ -152,12 +152,13 @@ const Horror = (() => {
     msgEl = document.createElement('div');
     msgEl.id = 'consequence-msg';
     msgEl.style.cssText = `
-      position: fixed; bottom: 12%; left: 0; right: 0;
+      position: fixed; bottom: 22%; left: 0; right: 0;
       text-align: center; pointer-events: none; z-index: 998;
       font-family: 'Jost', sans-serif; font-weight: 300;
-      font-size: 0.78rem; letter-spacing: 0.12em;
+      font-size: 0.75rem; letter-spacing: 0.14em;
       text-transform: uppercase; color: rgba(176, 68, 68, 0.85);
       opacity: 0; transition: opacity 0.4s ease;
+      text-shadow: 0 0 12px rgba(176,68,68,0.3);
     `;
     document.body.appendChild(msgEl);
   }

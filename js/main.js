@@ -100,16 +100,16 @@
   async function applyHorrorEffects(opt, wait) {
     if (opt.glitch) {
       Horror.silenceSpike(800);
-      Horror.screenBleed(0.9);
+      Horror.screenBleed(0.55);
       Horror.trackWrongRiddle();
       await wait(900);
     } else if (opt.sanityDelta <= -5 || opt.trustDelta <= -4) {
       Horror.silenceSpike(600);
-      Horror.screenBleed(0.8);
+      Horror.screenBleed(0.45);
       Horror.consequenceMessage('heavy');
     } else if (opt.sanityDelta < -2 || opt.trustDelta < -2) {
       Horror.silenceSpike(400);
-      Horror.screenBleed(0.5);
+      Horror.screenBleed(0.32);
       Horror.consequenceMessage('medium');
     } else if (opt.sanityDelta < 0 || opt.trustDelta < 0) {
       Horror.consequenceMessage('light');
@@ -493,7 +493,7 @@
             // Horror effects based on consequence severity
             if (opt.glitch) {
               Horror.silenceSpike(800);
-              Horror.screenBleed(0.9);
+              Horror.screenBleed(0.55);
               Horror.trackWrongRiddle();
               await wait(900);
               const span = document.createElement('span');
@@ -504,7 +504,7 @@
             } else {
               if (opt.sanityDelta < -3 || opt.trustDelta < -2) {
                 Horror.silenceSpike(600);
-                Horror.screenBleed(0.5);
+                Horror.screenBleed(0.32);
                 Horror.consequenceMessage(opt.sanityDelta <= -4 ? 'heavy' : 'medium');
               } else if (opt.sanityDelta < 0 || opt.trustDelta < 0) {
                 Horror.consequenceMessage('light');
@@ -561,7 +561,7 @@
                 Player.update({ saidNothingInClassroom: true });
               }
               if (opt.trustDelta < -2) {
-                Horror.screenBleed(0.5);
+                Horror.screenBleed(0.32);
                 Horror.consequenceMessage('medium');
               } else if (opt.trustDelta < 0) {
                 Horror.consequenceMessage('light');
@@ -739,7 +739,7 @@
 
         // Cost: sanity tick for borrowing someone else's memory
         Player.update({ sanity: Math.max(0, Player.get().sanity - 4) });
-        Horror.screenBleed(0.4);
+        Horror.screenBleed(0.25);
 
         const fragment = await (typeof Session !== 'undefined' && Session.getCode()
           ? Session.borrowMemory()
@@ -931,21 +931,26 @@
       const role = Player.get().role;
       if (role !== 'betrayer') return;
 
+      // Only show dispute panel in real multiplayer sessions
+      if (typeof Session === 'undefined' || !Session.getCode()) return;
+
       let realCount = 0;
       try {
-        if (typeof Session !== 'undefined' && Session.getCode()) {
-          realCount = await Session.getVoteCount(roomId);
-        }
+        realCount = await Session.getVoteCount(roomId);
       } catch(e) {}
+
+      // Only meaningful if others have actually voted
+      if (realCount < 1) return;
 
       const panel = document.createElement('div');
       panel.style.cssText = `
-        position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%);
+        position: fixed; bottom: 20%; left: 50%; transform: translateX(-50%);
         background: rgba(10,9,12,0.94); border: 1px solid rgba(176,68,68,0.3);
-        padding: 0.8rem 1.2rem; font-family: 'Jost', sans-serif;
+        padding: 0.8rem 1.4rem; font-family: 'Jost', sans-serif;
         font-size: 0.75rem; color: rgba(232,230,224,0.7);
         letter-spacing: 0.05em; z-index: 30; text-align: center;
         display: flex; gap: 1rem; align-items: center;
+        white-space: nowrap;
       `;
 
       const info = document.createElement('span');
@@ -2061,7 +2066,7 @@
               opt.effect();
               // Gate riddle has no wrong answer but each choice carries weight —
               // a brief bleed + consequence message makes each feel significant
-              Horror.screenBleed(0.4);
+              Horror.screenBleed(0.25);
               Horror.consequenceMessage('light');
               await showLine(opt.flavor, { meta: 'The Gate' });
               resolve();
