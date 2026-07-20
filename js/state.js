@@ -83,6 +83,14 @@ const Player = {
     const current = Player.get() || {};
     const updated = { ...current, ...partial };
     GameState.saveState('player', updated);
+
+    // Keep the shared session's copy of this player's sanity in sync so
+    // other players (e.g. Observer's borrowMemory) see real values instead
+    // of only ever reading their own local state.
+    if ('sanity' in partial && typeof Session !== 'undefined' && Session.getCode()) {
+      Session.setPlayerData({ sanity: updated.sanity }).catch(() => {});
+    }
+
     return updated;
   },
   setName(name) {

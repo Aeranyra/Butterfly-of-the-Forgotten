@@ -215,6 +215,65 @@ const Session = (() => {
   }
 
   /**
+   * Removes this player from the session (fix for stale Firebase entries
+   * on restart/reload). Also cancels the onDisconnect handler so it
+   * doesn't fire redundantly after we've already cleaned up manually.
+   */
+  async function leave() {
+    if (!sessionRef || !playerId) return;
+    try {
+      const playerRef = sessionRef.child('players/' + playerId);
+      await playerRef.child('connected').onDisconnect().cancel();
+      await playerRef.remove();
+    } catch (e) {
+      // best-effort cleanup — fine if this fails (e.g. connection already gone)
+    }
+  }
+
+  /**
+   * CONVERGENCE REAL VOTING — writes this player's actual shared-question
+   * answer (not just a submitted flag) so majority can be computed from
+   * real Firebase data instead of a simulated/random group.
+   */
+  function submitAnswer(roomId, answer) {
+    if (!sessionRef || !playerId) return Promise.resolve();
+    return sessionRef.child(`answers/${roomId}/${playerId}`).set(answer);
+  }
+
+  /**
+   * Waits until `expectedCount` players have answered, or until timeoutMs
+   * elapses (in case someone disconnected mid-vote) — then resolves with
+   * whatever answers are present.
+   */
+  function waitForAnswers(roomId, expectedCount, timeoutMs = 8000) {
+    if (!sessionRef) return Promise.resolve([]);
+    return new Promise(resolve => {
+      const ref = sessionRef.child(`answers/${roomId}`);
+      let done = false;
+      let timer = null;
+
+      const finish = (val) => {
+        if (done) return;
+        done = true;
+        ref.off('value', handler);
+        if (timer) clearTimeout(timer);
+        resolve(val ? Object.values(val) : []);
+      };
+
+      const handler = snap => {
+        const val = snap.val();
+        const count = val ? Object.keys(val).length : 0;
+        if (count >= expectedCount) finish(val);
+      };
+
+      ref.on('value', handler);
+      timer = setTimeout(() => {
+        ref.once('value').then(snap => finish(snap.val()));
+      }, timeoutMs);
+    });
+  }
+
+  /**
    * Plant Doubt — Betrayer writes a poisoned option label to Firebase.
    * Other players read this before their choice renders and see the
    * altered text. Betrayer always sees the real option text.
@@ -375,6 +434,9 @@ const Session = (() => {
     shareFragment,
     onSharedFragment,
     disputeResult,
-    onDispute
+    onDispute,
+    leave,
+    submitAnswer,
+    waitForAnswers
   };
 })();

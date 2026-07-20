@@ -265,6 +265,21 @@ const AudioManager = (() => {
     return { classroom, library, hallway, stop };
   })();
 
-  return { play, stop, unlock, playStatic, TRACKS, Ambient,
+  /**
+   * Fully closes the shared AudioContext instead of just stopping playback.
+   * Ambient/track stop() calls before this only released their own nodes —
+   * the underlying AudioContext stayed open for the life of the page.
+   * Call this right before a full reload/restart, not mid-game.
+   */
+  function shutdown() {
+    stop();
+    Ambient.stop();
+    if (playStatic._ctx) {
+      try { playStatic._ctx.close(); } catch (e) {}
+      playStatic._ctx = null;
+    }
+  }
+
+  return { play, stop, unlock, playStatic, TRACKS, Ambient, shutdown,
     get _currentAudio() { return currentAudio; } };
 })();

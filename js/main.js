@@ -85,6 +85,45 @@
     }
   ];
 
+  // ---------- SHARED TRUST SHIFT (fix: real multiplayer trust) ----------
+  // Trust.shift() only ever touched the local indicator. In a real 5-player
+  // session that means everyone sees their own private number instead of
+  // one shared group value. This wraps every trust change so it also
+  // writes to the session's shared trust node — Trust.syncFromRemote()
+  // (already wired into Session.onUpdate) then keeps everyone's UI honest.
+  function syncTrustShift(delta) {
+    Trust.shift(delta);
+    if (typeof Session !== 'undefined' && Session.getCode()) {
+      Session.shiftTrust(delta).catch(() => {});
+    }
+  }
+
+  // ---------- SHARED SANITY DELTA (fix: Forgotten decays faster) ----------
+  // Per the locked design, the Forgotten role's sanity should erode faster
+  // than the other roles', and staying silent during the Quiet Question
+  // ("saidNothingInClassroom") should weigh on that decay too. Route every
+  // negative sanity change through here so both rules apply consistently
+  // no matter which room/riddle triggered the loss.
+  function applySanityDelta(delta) {
+    const player = Player.get() || {};
+    const current = player.sanity != null ? player.sanity : 75;
+
+    if (delta >= 0) {
+      Player.update({ sanity: Math.min(100, current + delta) });
+      return;
+    }
+
+    let adjusted = delta;
+    if (player.role === 'forgotten') {
+      adjusted = Math.floor(adjusted * 1.5); // faster decay for the Forgotten
+    }
+    if (player.saidNothingInClassroom) {
+      adjusted -= 1; // the unspoken sixth seat keeps weighing on them
+    }
+
+    Player.update({ sanity: Math.max(0, current + adjusted) });
+  }
+
   // ---------- SCENE TRANSITION HELPER ----------
   function goToScene(sceneId) {
     document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
@@ -174,10 +213,10 @@
   // ====================================================================
   function beginOpeningSequence() {
     const titleScene = document.getElementById('scene-title');
-    titleScene.style.transition = 'opacity 1.4s ease';
-    titleScene.style.opacity = '0';
+    titleScene.classList.add('scene-fading-out');
 
     setTimeout(() => {
+      titleScene.classList.remove('scene-fading-out');
       goToScene('scene-prologue');
       AudioManager.play('prologue');
       runPrologue();
@@ -434,7 +473,7 @@
 
       const role = (Player.get().role) || 'wanderer';
       const reaction = SEATING_REACTIONS[role] || SEATING_REACTIONS.wanderer;
-      Trust.shift(0);
+      syncTrustShift(0);
       await showLine(reaction, { meta: 'Seating' });
 
       // ---- EVENT 3: LESSON FRAGMENT ----
@@ -478,43 +517,58 @@
           { text: 'The academy knows', sanityDelta: 0, trustDelta: 3, flavor: 'The voice pauses. Then continues. Apparently satisfied.' }
         ];
 
-        choiceContainer.style.display = 'flex';
+        choiceContainer.style.display = 'none'; // hidden until Plant Doubt resolves
         choiceContainer.innerHTML = '';
 
+        const buttons = [];
         options.forEach(opt => {
           const btn = document.createElement('button');
           btn.className = 'choice-btn';
           btn.textContent = opt.text;
-          btn.addEventListener('click', async () => {
-            choiceContainer.style.display = 'none';
-            if (opt.sanityDelta) Player.update({ sanity: Math.max(0, (Player.get().sanity || 75) + opt.sanityDelta) });
-            if (opt.trustDelta) Trust.shift(opt.trustDelta);
-
-            // Horror effects based on consequence severity
-            if (opt.glitch) {
-              Horror.silenceSpike(800);
-              Horror.screenBleed(0.55);
-              Horror.trackWrongRiddle();
-              await wait(900);
-              const span = document.createElement('span');
-              textEl.innerHTML = '';
-              textEl.appendChild(span);
-              GlitchDialogue.render(span, opt.flavor, Player.get().sanity);
-              await wait(2200);
-            } else {
-              if (opt.sanityDelta < -3 || opt.trustDelta < -2) {
-                Horror.silenceSpike(600);
-                Horror.screenBleed(0.32);
-                Horror.consequenceMessage(opt.sanityDelta <= -4 ? 'heavy' : 'medium');
-              } else if (opt.sanityDelta < 0 || opt.trustDelta < 0) {
-                Horror.consequenceMessage('light');
-              }
-              await showLine(opt.flavor, { meta: 'Lesson' });
-            }
-            resolve();
-          }, { once: true });
+          btn.style.pointerEvents = 'none';
           choiceContainer.appendChild(btn);
+          buttons.push(btn);
         });
+
+        (async () => {
+          // Wire ALL role abilities into this choice window, including Plant Doubt
+          await RoleAbilities.wireChoiceWindow('lesson', { options, container: choiceContainer, buttons, textEl, metaEl });
+
+          choiceContainer.style.display = 'flex';
+          buttons.forEach((btn, i) => {
+            btn.style.pointerEvents = 'auto';
+            const opt = options[i];
+            btn.addEventListener('click', async () => {
+              choiceContainer.style.display = 'none';
+              RoleAbilities.checkPlantDoubtTrigger(btn);
+              if (opt.sanityDelta) applySanityDelta(opt.sanityDelta);
+              if (opt.trustDelta) syncTrustShift(opt.trustDelta);
+
+              // Horror effects based on consequence severity
+              if (opt.glitch) {
+                Horror.silenceSpike(800);
+                Horror.screenBleed(0.55);
+                Horror.trackWrongRiddle();
+                await wait(900);
+                const span = document.createElement('span');
+                textEl.innerHTML = '';
+                textEl.appendChild(span);
+                GlitchDialogue.render(span, opt.flavor, Player.get().sanity);
+                await wait(2200);
+              } else {
+                if (opt.sanityDelta < -3 || opt.trustDelta < -2) {
+                  Horror.silenceSpike(600);
+                  Horror.screenBleed(0.32);
+                  Horror.consequenceMessage(opt.sanityDelta <= -4 ? 'heavy' : 'medium');
+                } else if (opt.sanityDelta < 0 || opt.trustDelta < 0) {
+                  Horror.consequenceMessage('light');
+                }
+                await showLine(opt.flavor, { meta: 'Lesson' });
+              }
+              resolve();
+            }, { once: true });
+          });
+        })();
       });
     }
 
@@ -556,7 +610,7 @@
             btn.addEventListener('click', async () => {
               choiceContainer.style.display = 'none';
               RoleAbilities.checkPlantDoubtTrigger(btn);
-              Trust.shift(opt.trustDelta);
+              syncTrustShift(opt.trustDelta);
               if (opt.text === 'Say nothing') {
                 Player.update({ saidNothingInClassroom: true });
               }
@@ -662,7 +716,7 @@
               console.warn('Plant Doubt Firebase write failed:', e);
             }
 
-            Player.update({ sanity: Math.max(0, Player.get().sanity - 3) });
+            applySanityDelta(-3);
             dismiss(i);
           }, { once: true });
           panel.appendChild(btn);
@@ -706,7 +760,7 @@
      */
     function checkPlantDoubtTrigger(btn) {
       if (btn.dataset.realText) {
-        Trust.shift(-2);
+        syncTrustShift(-2);
         Horror.betrayerEcho();
       }
     }
@@ -738,7 +792,7 @@
         borrowedMemoryUsed[roomId] = true;
 
         // Cost: sanity tick for borrowing someone else's memory
-        Player.update({ sanity: Math.max(0, Player.get().sanity - 4) });
+        applySanityDelta(-4);
         Horror.screenBleed(0.25);
 
         const fragment = await (typeof Session !== 'undefined' && Session.getCode()
@@ -790,7 +844,7 @@
       document.body.appendChild(tallyEl);
 
       // Small sanity cost for watching — same as Observer truth-vision cost
-      Player.update({ sanity: Math.max(0, Player.get().sanity - 2) });
+      applySanityDelta(-2);
 
       let stopTally = () => {};
       try {
@@ -823,6 +877,33 @@
     let groupCheckUsed = false;
 
     function showWandererCheck(roomId, textEl, metaEl) {
+      // Listening for a group check happens for EVERY player, regardless of
+      // role — previously this whole function (including the listener)
+      // returned early for non-Wanderers, so only the Wanderer who called
+      // the check ever saw any feedback. Everyone should feel it land.
+      try {
+        if (typeof Session !== 'undefined' && Session.getCode()) {
+          Session.onGroupCheck(roomId, (data) => {
+            // Don't re-notify the player who requested it — they already
+            // saw their own confirmation message above.
+            if (data && data.requestedBy === Session.getPlayerId()) return;
+
+            const lastBtn = document.querySelector('[data-real-text]');
+            if (lastBtn) {
+              // This player was Plant Doubted — extra paranoia beat.
+              Horror.consequenceMessage('medium');
+              GlitchDialogue.render(textEl, 'Did you mean to choose that?', Player.get().sanity);
+            } else if (textEl && metaEl) {
+              // Everyone else still sees that a check was called.
+              const oldMeta = metaEl.textContent;
+              metaEl.textContent = 'Group Check';
+              textEl.innerHTML = '<span class="beat">Someone just asked the group to confirm.</span>';
+              setTimeout(() => { metaEl.textContent = oldMeta; }, 2500);
+            }
+          });
+        }
+      } catch(e) {}
+
       const role = Player.get().role;
       if (role !== 'wanderer') return;
       if (groupCheckUsed) return;
@@ -858,20 +939,6 @@
 
       document.body.appendChild(btn);
       setTimeout(() => { if (btn.parentNode) btn.remove(); }, 15000);
-
-      // Listen for OTHER players' group check requests
-      try {
-        if (typeof Session !== 'undefined' && Session.getCode()) {
-          Session.onGroupCheck(roomId, () => {
-            // If this player was Plant Doubted, show them the paranoia message
-            const lastBtn = document.querySelector('[data-real-text]');
-            if (lastBtn) {
-              Horror.consequenceMessage('medium');
-              GlitchDialogue.render(textEl, 'Did you mean to choose that?', Player.get().sanity);
-            }
-          });
-        }
-      } catch(e) {}
     }
 
     // ── FORGOTTEN ANONYMOUS SHARE ─────────────────────────────────────
@@ -975,7 +1042,7 @@
         try {
           if (typeof Session !== 'undefined' && Session.getCode()) {
             await Session.disputeResult(roomId);
-            Trust.shift(-2); // dispute costs trust
+            syncTrustShift(-2); // dispute costs trust
           }
         } catch(e) {}
       }, { once: true });
@@ -1131,10 +1198,10 @@
       // ---- EVENT 4: ROLE INTERFERENCE ----
       if (role === 'betrayer') {
         await showLine('"Let them doubt each other."', { meta: 'Interference', glitch: true });
-        Trust.shift(-4);
+        syncTrustShift(-4);
       } else if (role === 'observer') {
         await showLine('"This corridor has been walked before."', { meta: 'Interference', glitch: true });
-        Player.update({ sanity: Math.max(0, Player.get().sanity - 3) });
+        applySanityDelta(-3);
       } else if (role === 'forgotten') {
         await showLine('A voice says your name. It gets it wrong.', { meta: 'Interference' });
       } else {
@@ -1189,17 +1256,31 @@
             { text: 'There was no door', trustDelta: -4, sanityDelta: 0, flavor: 'The group shifts. Something about that answer unsettles everyone.' }
           ];
 
-          choiceContainer.style.display = 'flex';
+          choiceContainer.style.display = 'none'; // hidden until Plant Doubt resolves
           choiceContainer.innerHTML = '';
 
+          const buttons = [];
           options.forEach(opt => {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt.text;
+            btn.style.pointerEvents = 'none';
+            choiceContainer.appendChild(btn);
+            buttons.push(btn);
+          });
+
+          // Wire ALL role abilities into this choice window, including Plant Doubt
+          await RoleAbilities.wireChoiceWindow('corridor_riddle', { options, container: choiceContainer, buttons, textEl, metaEl });
+
+          choiceContainer.style.display = 'flex';
+          buttons.forEach((btn, i) => {
+            btn.style.pointerEvents = 'auto';
+            const opt = options[i];
             btn.addEventListener('click', async () => {
               choiceContainer.style.display = 'none';
-              if (opt.sanityDelta) Player.update({ sanity: Math.max(0, (Player.get().sanity || 75) + opt.sanityDelta) });
-              if (opt.trustDelta) Trust.shift(opt.trustDelta);
+              RoleAbilities.checkPlantDoubtTrigger(btn);
+              if (opt.sanityDelta) applySanityDelta(opt.sanityDelta);
+              if (opt.trustDelta) syncTrustShift(opt.trustDelta);
               await applyHorrorEffects(opt, ms => new Promise(r => setTimeout(r, ms)));
               if (opt.glitch) {
                 const span = document.createElement('span');
@@ -1212,7 +1293,6 @@
               }
               resolve();
             }, { once: true });
-            choiceContainer.appendChild(btn);
           });
         }, 1800);
       });
@@ -1258,7 +1338,7 @@
               RoleAbilities.checkPlantDoubtTrigger(btn);
               choiceContainer.style.display = 'none';
               if (options[i].text === 'Stay still') {
-                Player.update({ sanity: Math.min(100, Player.get().sanity + 2) });
+                applySanityDelta(2);
               }
               await showLine(options[i].flavor, { meta: 'Movement' });
               resolve();
@@ -1406,22 +1486,36 @@
             { text: 'The one that has your name in it', trustDelta: 0, sanityDelta: -5, glitch: true, flavor: 'Your name. In your handwriting. Dated before you arrived.' }
           ];
 
-          choiceContainer.style.display = 'flex';
+          choiceContainer.style.display = 'none'; // hidden until Plant Doubt resolves
           choiceContainer.innerHTML = '';
 
+          const buttons = [];
           options.forEach(opt => {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt.text;
+            btn.style.pointerEvents = 'none';
+            choiceContainer.appendChild(btn);
+            buttons.push(btn);
+          });
+
+          // Wire ALL role abilities into this choice window, including Plant Doubt
+          await RoleAbilities.wireChoiceWindow('library_riddle', { options, container: choiceContainer, buttons, textEl, metaEl });
+
+          choiceContainer.style.display = 'flex';
+          buttons.forEach((btn, i) => {
+            btn.style.pointerEvents = 'auto';
+            const opt = options[i];
             btn.addEventListener('click', async () => {
               choiceContainer.style.display = 'none';
-              if (opt.sanityDelta) Player.update({ sanity: Math.max(0, (Player.get().sanity || 75) + opt.sanityDelta) });
-              if (opt.trustDelta) Trust.shift(opt.trustDelta);
+              RoleAbilities.checkPlantDoubtTrigger(btn);
+              if (opt.sanityDelta) applySanityDelta(opt.sanityDelta);
+              if (opt.trustDelta) syncTrustShift(opt.trustDelta);
               if (opt.observerFragment && (Player.get().role) === 'observer') {
                 Player.update({ observerLibraryFragment: true });
               }
               if (opt.betrayerWindow && (Player.get().role) === 'betrayer') {
-                Trust.shift(-2);
+                syncTrustShift(-2);
               }
               await applyHorrorEffects(opt, ms => new Promise(r => setTimeout(r, ms)));
               if (opt.glitch) {
@@ -1435,7 +1529,6 @@
               }
               resolve();
             }, { once: true });
-            choiceContainer.appendChild(btn);
           });
         }, 1800);
       });
@@ -1450,7 +1543,7 @@
           {
             text: 'Look closer',
             apply: async () => {
-              Player.update({ sanity: Math.max(0, Player.get().sanity - 5) });
+              applySanityDelta(-5);
               await showLine('The true page surfaces for a moment: a name, almost yours, crossed out and rewritten.', { meta: 'Observer', glitch: true });
             }
           },
@@ -1514,7 +1607,7 @@
             btn.addEventListener('click', async () => {
               RoleAbilities.checkPlantDoubtTrigger(btn);
               choiceContainer.style.display = 'none';
-              Trust.shift(options[i].trustDelta);
+              syncTrustShift(options[i].trustDelta);
               if (options[i].trustDelta < 0) Horror.consequenceMessage('medium');
               await showLine(options[i].flavor, { meta: 'Fragment' });
               resolve();
@@ -1570,22 +1663,30 @@
 
       const answer = await runSharedQuestion();
 
-      // Solo-test note: real cross-player tallying needs all 5 sessions
-      // synced through Firebase. Here, the "group" result is approximated
-      // from the player's own answer plus a weighted random spread, just
-      // enough to demonstrate the majority/split mechanic until live
-      // 5-player tallying is wired in.
-      const simulatedGroup = [answer];
-      for (let i = 0; i < 4; i++) {
-        const pool = ['leave', 'stay', 'unsure'];
-        simulatedGroup.push(pool[Math.floor(Math.random() * pool.length)]);
+      let group;
+      if (typeof Session !== 'undefined' && Session.getCode()) {
+        // Real multiplayer session — write our answer and wait for the
+        // rest of the group (or a timeout, in case someone stalls/drops).
+        await Session.submitAnswer('convergence', answer);
+        const playerCount = await Session.getPlayerCount();
+        group = await Session.waitForAnswers('convergence', playerCount || 5, 8000);
+        if (!group || group.length === 0) group = [answer];
+      } else {
+        // Solo-test fallback: simulate the other 4 answers so the
+        // majority/split mechanic can still be demonstrated alone.
+        group = [answer];
+        for (let i = 0; i < 4; i++) {
+          const pool = ['leave', 'stay', 'unsure'];
+          group.push(pool[Math.floor(Math.random() * pool.length)]);
+        }
       }
-      const counts = simulatedGroup.reduce((acc, a) => { acc[a] = (acc[a] || 0) + 1; return acc; }, {});
+
+      const counts = group.reduce((acc, a) => { acc[a] = (acc[a] || 0) + 1; return acc; }, {});
       const majorityCount = Math.max(...Object.values(counts));
-      const majorityReached = majorityCount >= 3; // 3 of 5 = real majority
+      const majorityReached = majorityCount > group.length / 2;
 
       Player.update({ convergenceMajorityReached: majorityReached });
-      Trust.shift(majorityReached ? 5 : -3);
+      syncTrustShift(majorityReached ? 5 : -3);
 
       await showLine(`${majorityCount} of you answered the same way.`, { meta: 'Convergence' });
       await showLine(
@@ -1729,7 +1830,7 @@
       if (role === 'betrayer') {
         await showLine('"They are close to remembering everything. Slow them down."', { meta: 'Pressure', glitch: true });
       } else if (role === 'observer') {
-        Player.update({ sanity: Math.max(0, Player.get().sanity - 3) });
+        applySanityDelta(-3);
         await showLine('You see the tower\'s gears running backward. Looking costs you something, every time.', { meta: 'Pressure', glitch: true });
       } else if (role === 'forgotten') {
         await showLine('"I never did," someone says, about something you don\'t remember asking.', { meta: 'Pressure' });
@@ -1797,8 +1898,7 @@
             btn.addEventListener('click', async () => {
               choiceContainer.style.display = 'none';
               RoleAbilities.checkPlantDoubtTrigger(btn);
-              const current = Player.get().sanity;
-              Player.update({ sanity: Math.max(0, Math.min(100, current + opt.sanityDelta)) });
+              applySanityDelta(opt.sanityDelta);
               Player.update({ alignmentChoice: opt.text });
               if (opt.sanityDelta < 0) Horror.consequenceMessage('light');
               await showLine(opt.flavor, { meta: 'Final Alignment' });
@@ -1814,7 +1914,7 @@
         metaEl.textContent = 'The Boy Who Remembers';
         textEl.innerHTML = '<span class="beat">He blocks the stairs without moving. Just standing there, waiting to be asked.</span>';
 
-        setTimeout(() => {
+        setTimeout(async () => {
           textEl.innerHTML = '<span class="beat">"Tell me what time it was when you arrived."</span>';
 
           const options = [
@@ -1824,17 +1924,31 @@
             { text: 'You already know', trustDelta: -2, sanityDelta: 0, flavor: 'He smiles. That\'s the wrong move. You feel it immediately.' }
           ];
 
-          choiceContainer.style.display = 'flex';
+          choiceContainer.style.display = 'none'; // hidden until Plant Doubt resolves
           choiceContainer.innerHTML = '';
 
+          const buttons = [];
           options.forEach(opt => {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt.text;
+            btn.style.pointerEvents = 'none';
+            choiceContainer.appendChild(btn);
+            buttons.push(btn);
+          });
+
+          // Wire ALL role abilities into this choice window, including Plant Doubt
+          await RoleAbilities.wireChoiceWindow('boy_riddle', { options, container: choiceContainer, buttons, textEl, metaEl });
+
+          choiceContainer.style.display = 'flex';
+          buttons.forEach((btn, i) => {
+            btn.style.pointerEvents = 'auto';
+            const opt = options[i];
             btn.addEventListener('click', async () => {
               choiceContainer.style.display = 'none';
-              if (opt.sanityDelta) Player.update({ sanity: Math.max(0, (Player.get().sanity || 75) + opt.sanityDelta) });
-              if (opt.trustDelta) Trust.shift(opt.trustDelta);
+              RoleAbilities.checkPlantDoubtTrigger(btn);
+              if (opt.sanityDelta) applySanityDelta(opt.sanityDelta);
+              if (opt.trustDelta) syncTrustShift(opt.trustDelta);
               await applyHorrorEffects(opt, ms => new Promise(r => setTimeout(r, ms)));
               if (opt.glitch) {
                 const span = document.createElement('span');
@@ -1847,7 +1961,6 @@
               }
               resolve();
             }, { once: true });
-            choiceContainer.appendChild(btn);
           });
         }, 1800);
       });
@@ -2026,7 +2139,7 @@
         const span = textEl.querySelector('span');
         GlitchDialogue.render(span, '"What did the academy take from you?"', Player.get().sanity);
 
-        setTimeout(() => {
+        setTimeout(async () => {
           const options = [
             {
               text: 'My name',
@@ -2054,15 +2167,29 @@
             }
           ];
 
-          choiceContainer.style.display = 'flex';
+          choiceContainer.style.display = 'none'; // hidden until Plant Doubt resolves
           choiceContainer.innerHTML = '';
 
+          const buttons = [];
           options.forEach(opt => {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt.text;
+            btn.style.pointerEvents = 'none';
+            choiceContainer.appendChild(btn);
+            buttons.push(btn);
+          });
+
+          // Wire ALL role abilities into this choice window, including Plant Doubt
+          await RoleAbilities.wireChoiceWindow('gate_riddle', { options, container: choiceContainer, buttons, textEl, metaEl });
+
+          choiceContainer.style.display = 'flex';
+          buttons.forEach((btn, i) => {
+            btn.style.pointerEvents = 'auto';
+            const opt = options[i];
             btn.addEventListener('click', async () => {
               choiceContainer.style.display = 'none';
+              RoleAbilities.checkPlantDoubtTrigger(btn);
               opt.effect();
               // Gate riddle has no wrong answer but each choice carries weight —
               // a brief bleed + consequence message makes each feel significant
@@ -2071,7 +2198,6 @@
               await showLine(opt.flavor, { meta: 'The Gate' });
               resolve();
             }, { once: true });
-            choiceContainer.appendChild(btn);
           });
         }, 2200);
       });
@@ -2375,11 +2501,23 @@
       }
     }
 
-    document.getElementById('btn-play-again').onclick = () => {
+    async function cleanupAndReload() {
+      try {
+        if (typeof Session !== 'undefined' && Session.getCode()) {
+          await Session.leave();
+        }
+      } catch (e) {
+        // best-effort — reload regardless
+      }
+      try { AudioManager.shutdown(); } catch (e) {}
       window.location.reload();
+    }
+
+    document.getElementById('btn-play-again').onclick = () => {
+      cleanupAndReload();
     };
     document.getElementById('btn-return-title').onclick = () => {
-      window.location.reload();
+      cleanupAndReload();
     };
   }
 
