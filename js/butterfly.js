@@ -100,6 +100,12 @@ const Butterfly = (() => {
    * Returns a stop function that removes the trail and its listeners.
    */
   function cursorTrail(container, { variant = null } = {}) {
+    // Purely decorative, continuously-animated follower — skip entirely
+    // for reduced-motion users instead of just disabling the CSS parts.
+    if (typeof Horror !== 'undefined' && Horror.prefersReducedMotion()) {
+      return function stop() {};
+    }
+
     const leadEl = document.createElement('div');
     leadEl.className = 'butterfly butterfly-cursor';
     leadEl.style.animation = 'none';

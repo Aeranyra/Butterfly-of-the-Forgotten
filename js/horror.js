@@ -12,6 +12,15 @@
 
 const Horror = (() => {
 
+  // Respects the OS/browser-level reduced-motion preference. The CSS
+  // @media (prefers-reduced-motion) rule only covers class-based CSS
+  // animations/transitions — it has no effect on inline styles set
+  // directly from JS (screen bleed, cursor trail), so those need their
+  // own check.
+  function _prefersReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
   // ── 1. SCREEN BLEED ──────────────────────────────────────────────────
   // Slow red creep from screen corners on bad choices. Created once,
   // reused on every trigger so we don't litter the DOM.
@@ -35,6 +44,14 @@ const Horror = (() => {
 
   function screenBleed(intensity = 0.6) {
     _ensureBleed();
+    if (_prefersReducedMotion()) {
+      // Same feedback, no animated creep — a brief static tint instead
+      // of a moving/fading gradient.
+      bleedEl.style.transition = 'none';
+      bleedEl.style.opacity = String(Math.min(intensity, 0.3));
+      setTimeout(() => { bleedEl.style.opacity = '0'; }, 500);
+      return;
+    }
     bleedEl.style.transition = 'opacity 0.3s ease';
     bleedEl.style.opacity = String(intensity);
     setTimeout(() => {
@@ -248,6 +265,7 @@ const Horror = (() => {
     erraticButterflyOptions,
     startTextDistortion,
     stopTextDistortion,
+    prefersReducedMotion: _prefersReducedMotion,
     init
   };
 })();

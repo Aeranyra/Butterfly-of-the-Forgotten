@@ -124,6 +124,68 @@
     Player.update({ sanity: Math.max(0, current + adjusted) });
   }
 
+  // ---------- DEBUG OVERLAY (?debug=1) ----------
+  // Small always-on-top readout of the current player/session state,
+  // for solo testing without having to open devtools and poke at
+  // GameState/Trust/Session manually every time something looks off.
+  function initDebugOverlay() {
+    const el = document.createElement('div');
+    el.id = 'debug-overlay';
+    el.style.cssText = `
+      position: fixed; top: 4%; left: 4%; z-index: 1000;
+      background: rgba(10,9,12,0.88); border: 1px solid rgba(107,91,122,0.4);
+      color: rgba(200,198,210,0.9); font-family: monospace; font-size: 0.68rem;
+      padding: 0.5rem 0.7rem; line-height: 1.5; white-space: pre;
+      pointer-events: none; max-width: 60vw;
+    `;
+    document.body.appendChild(el);
+
+    function refresh() {
+      const player = Player.get() || {};
+      const sessionCode = (typeof Session !== 'undefined' && Session.getCode()) || '(none)';
+      el.textContent =
+        `role:    ${player.role || '—'}\n` +
+        `sanity:  ${player.sanity != null ? player.sanity : '—'}\n` +
+        `trust:   ${typeof Trust !== 'undefined' ? Trust.get() : '—'}\n` +
+        `scene:   ${player.currentScene || '—'}\n` +
+        `session: ${sessionCode}`;
+    }
+
+    refresh();
+    setInterval(refresh, 500);
+  }
+
+  // ---------- MUTE TOGGLE (persistent, all scenes) ----------
+  // Feature request: no way to mute/lower audio without the OS volume.
+  // Small floating button, top-right, present on every scene. Preference
+  // is remembered across a restart via GameState (sessionStorage-backed).
+  function initMuteButton() {
+    const savedMuted = GameState.loadState('muted', false);
+    if (savedMuted) AudioManager.setMuted(true);
+
+    const btn = document.createElement('button');
+    btn.id = 'mute-toggle';
+    btn.type = 'button';
+    btn.textContent = savedMuted ? '🔇' : '🔊';
+    btn.setAttribute('aria-label', 'Toggle sound');
+    btn.style.cssText = `
+      position: fixed; top: 4%; right: 4%; z-index: 999;
+      background: rgba(10,9,12,0.82); border: 1px solid rgba(232,230,224,0.2);
+      color: rgba(232,230,224,0.85); font-size: 1.05rem; line-height: 1;
+      width: 2.3rem; height: 2.3rem; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-family: 'Jost', sans-serif;
+    `;
+
+    btn.addEventListener('click', () => {
+      const nowMuted = AudioManager.toggleMute();
+      btn.textContent = nowMuted ? '🔇' : '🔊';
+      GameState.saveState('muted', nowMuted);
+    });
+
+    document.body.appendChild(btn);
+  }
+
   // ---------- SCENE TRANSITION HELPER ----------
   function goToScene(sceneId) {
     document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
@@ -2080,32 +2142,34 @@
       // Observer's choice is written to Firebase so ALL players calculate
       // the same ending — this is the core of "everyone gets the same ending."
       let observerChoice = null;
+      const hasSession = typeof Session !== 'undefined' && Session.getCode();
       if (role === 'observer') {
         observerChoice = await runObserverDecision();
-        // Write choice to Firebase so every other player reads it
-        try {
-          if (typeof Session !== 'undefined' && Session.getCode()) {
-            await firebase.database()
-              .ref(`sessions/${Session.getCode()}/observerChoice`)
-              .set(observerChoice);
+        // Write choice via the Session API so every other player reads it
+        if (hasSession) {
+          try {
+            await Session.submitObserverChoice(observerChoice);
+          } catch (e) {
+            console.warn('Could not write Observer choice to Firebase:', e);
           }
-        } catch (e) {
-          console.warn('Could not write Observer choice to Firebase:', e);
         }
       } else {
-        // Non-Observer players wait briefly then read Observer's decision
+        // Non-Observer players wait for the Observer's ACTUAL decision to
+        // arrive, rather than reading once after a fixed 2s delay — a slow
+        // Observer (still reading flavor text, thinking it over) used to
+        // mean everyone else locked in `null` and calculated a different
+        // ending than the Observer did. A generous timeout is kept only
+        // as a safety net in case the Observer disconnects mid-decision.
         await showLine('The Observer stands at the gate alone.', { meta: 'Final Gate' });
         await showLine('Whatever they choose, it ends this for everyone.', { meta: 'Final Gate', holdForClick: false });
-        await wait(2000);
-        try {
-          if (typeof Session !== 'undefined' && Session.getCode()) {
-            const snap = await firebase.database()
-              .ref(`sessions/${Session.getCode()}/observerChoice`)
-              .once('value');
-            observerChoice = snap.val();
+        if (hasSession) {
+          try {
+            observerChoice = await Session.waitForObserverChoice(15000);
+          } catch (e) {
+            console.warn('Could not read Observer choice from Firebase:', e);
           }
-        } catch (e) {
-          console.warn('Could not read Observer choice from Firebase:', e);
+        } else {
+          await wait(2000);
         }
       }
 
@@ -2375,6 +2439,7 @@
 
   function runEnding(endingKey) {
     const content = ENDING_CONTENT[endingKey] || ENDING_CONTENT.forgottenEnding;
+    EndingsJournal.unlock(endingKey);
     goToScene('scene-ending');
     AudioManager.play(content.track, { loop: false, volume: 0.5 });
 
@@ -2450,6 +2515,17 @@
 
     setTimeout(() => {
       // Beat 5: return options
+      const journalEl = document.getElementById('endings-journal-count');
+      if (journalEl) {
+        const unlocked = EndingsJournal.getUnlocked().length;
+        const total = EndingsJournal.totalCount();
+        journalEl.textContent = `Endings found: ${unlocked} / ${total}`;
+        journalEl.style.display = 'block';
+        journalEl.style.opacity = '0';
+        journalEl.style.transition = 'opacity 1.5s ease';
+        requestAnimationFrame(() => { journalEl.style.opacity = '1'; });
+      }
+
       returnOptions.style.display = 'flex';
       returnOptions.style.opacity = '0';
       returnOptions.style.transition = 'opacity 1.5s ease';
@@ -2638,8 +2714,7 @@
      * rather than 5 clients racing to assign independently.
      */
     async function assignRolesIfHost() {
-      const snapshot = await firebase.database().ref('sessions/' + Session.getCode()).once('value');
-      const session = snapshot.val();
+      const session = await Session.getSession();
       if (!session || !session.players) return;
 
       const entries = Object.entries(session.players);
@@ -2650,20 +2725,18 @@
         const alreadyAssigned = entries.every(([, p]) => p.role);
         if (!alreadyAssigned) {
           const roles = shuffle(['wanderer', 'wanderer', 'betrayer', 'observer', 'forgotten']);
-          const updates = {};
+          const roleByPlayerId = {};
           sortedByJoin.forEach(([pid], i) => {
-            updates[`players/${pid}/role`] = roles[i];
+            roleByPlayerId[pid] = roles[i];
           });
-          await firebase.database().ref('sessions/' + Session.getCode()).update(updates);
+          await Session.assignRoles(roleByPlayerId);
         }
       }
 
-      // All players (host included) wait briefly then read their own role
-      await new Promise(r => setTimeout(r, isHost ? 0 : 600));
-      const myRoleSnap = await firebase.database()
-        .ref(`sessions/${Session.getCode()}/players/${Session.getPlayerId()}/role`)
-        .once('value');
-      const myRole = myRoleSnap.val();
+      // Wait for the role to actually appear, rather than reading once
+      // after a fixed delay — a slower host write used to mean a fast
+      // client could read null and never get a role.
+      const myRole = await Session.waitForOwnRole(8000);
       if (myRole) Player.update({ role: myRole });
     }
 
@@ -2759,6 +2832,10 @@
   document.addEventListener('DOMContentLoaded', () => {
     initTitleScreen();
     initNameInput();
+    initMuteButton();
+    if (new URLSearchParams(window.location.search).get('debug') === '1') {
+      initDebugOverlay();
+    }
   });
 
 })();

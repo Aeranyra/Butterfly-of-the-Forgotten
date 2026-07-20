@@ -27,6 +27,43 @@ const AudioManager = (() => {
   let currentTrackName = null;
   let unlocked = false;
   let staticAudio = null;
+  let muted = false;
+
+  /**
+   * All Web Audio nodes (playStatic bursts, Ambient loops) connect through
+   * this shared gain node instead of straight to ctx.destination, so mute
+   * can silence them all at once without tearing down/rebuilding anything.
+   */
+  function _getMasterGain(ctx) {
+    if (!ctx._masterGain) {
+      const g = ctx.createGain();
+      g.gain.value = muted ? 0 : 1;
+      g.connect(ctx.destination);
+      ctx._masterGain = g;
+    }
+    return ctx._masterGain;
+  }
+
+  /**
+   * Global mute toggle — silences both the HTML5 music track and every
+   * Web Audio effect (static bursts, ambient room loops) at once.
+   */
+  function setMuted(value) {
+    muted = value;
+    if (currentAudio) currentAudio.muted = muted;
+    if (playStatic._ctx && playStatic._ctx._masterGain) {
+      playStatic._ctx._masterGain.gain.value = muted ? 0 : 1;
+    }
+    return muted;
+  }
+
+  function toggleMute() {
+    return setMuted(!muted);
+  }
+
+  function isMuted() {
+    return muted;
+  }
 
   function _fadeOut(audio, duration = 800) {
     return new Promise(resolve => {
@@ -74,6 +111,7 @@ const AudioManager = (() => {
     const newAudio = new Audio(TRACKS[trackName]);
     newAudio.loop = loop;
     newAudio.preload = 'auto';
+    newAudio.muted = muted;
 
     const oldAudio = currentAudio;
     currentAudio = newAudio;
@@ -130,7 +168,7 @@ const AudioManager = (() => {
       // Raised floor and ceiling so static is clearly audible at all tiers
       gain.gain.value = 0.55 + intensity * 0.65;
       source.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(_getMasterGain(ctx));
       source.start();
     } catch (e) {
       // Web Audio unsupported — silently skip, not critical
@@ -178,7 +216,7 @@ const AudioManager = (() => {
         if (Q) f.Q.value = Q;
         const g = ctx.createGain();
         g.gain.value = gainVal;
-        src.connect(f); f.connect(g); g.connect(ctx.destination);
+        src.connect(f); f.connect(g); g.connect(_getMasterGain(ctx));
         src.start();
         activeNodes.push(src);
         return src;
@@ -218,7 +256,7 @@ const AudioManager = (() => {
         f.type = 'highpass'; f.frequency.value = 2000;
         const g = ctx.createGain();
         g.gain.value = 0.15 + Math.random() * 0.1;
-        src.connect(f); f.connect(g); g.connect(ctx.destination);
+        src.connect(f); f.connect(g); g.connect(_getMasterGain(ctx));
         src.start();
         activeNodes.push(src);
         if (Math.random() < 0.35) setTimeout(turnPage, 130 + Math.random() * 160);
@@ -247,7 +285,7 @@ const AudioManager = (() => {
         f.type = 'lowpass'; f.frequency.value = 160 + Math.random() * 80;
         const g = ctx.createGain();
         g.gain.value = 0.22 + Math.random() * 0.1;
-        src.connect(f); f.connect(g); g.connect(ctx.destination);
+        src.connect(f); f.connect(g); g.connect(_getMasterGain(ctx));
         src.start();
         activeNodes.push(src);
       }
@@ -281,5 +319,6 @@ const AudioManager = (() => {
   }
 
   return { play, stop, unlock, playStatic, TRACKS, Ambient, shutdown,
+    setMuted, toggleMute, isMuted,
     get _currentAudio() { return currentAudio; } };
 })();

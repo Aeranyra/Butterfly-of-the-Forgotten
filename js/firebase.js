@@ -208,6 +208,104 @@ const Session = (() => {
     return sessionRef.child('started').set(true);
   }
 
+  /**
+   * OBSERVER DECISION — writes the Observer's final-gate choice so every
+   * other player computes the same shared ending. Routed through the
+   * Session API (not a bare firebase.database() call from main.js) to
+   * keep this file the only one that talks to Firebase directly.
+   */
+  function submitObserverChoice(choice) {
+    if (!sessionRef) return Promise.resolve();
+    return sessionRef.child('observerChoice').set(choice);
+  }
+
+  /**
+   * Waits for the Observer's choice to actually appear, instead of reading
+   * once after a fixed delay (which could read null if the Observer was
+   * still deciding). Falls back to whatever's there after timeoutMs so a
+   * slow/dropped Observer doesn't hang the other players forever.
+   */
+  function waitForObserverChoice(timeoutMs = 15000) {
+    if (!sessionRef) return Promise.resolve(null);
+    return new Promise(resolve => {
+      const ref = sessionRef.child('observerChoice');
+      let done = false;
+      let timer = null;
+
+      const finish = (val) => {
+        if (done) return;
+        done = true;
+        ref.off('value', handler);
+        if (timer) clearTimeout(timer);
+        resolve(val || null);
+      };
+
+      const handler = snap => {
+        const val = snap.val();
+        if (val) finish(val);
+      };
+
+      ref.on('value', handler);
+      timer = setTimeout(() => {
+        ref.once('value').then(snap => finish(snap.val()));
+      }, timeoutMs);
+    });
+  }
+
+  /**
+   * One-time full read of the session — used by the host to see the
+   * current player list before computing role assignments.
+   */
+  async function getSession() {
+    if (!sessionRef) return null;
+    const snap = await sessionRef.once('value');
+    return snap.val();
+  }
+
+  /**
+   * Host-only: writes a role for every player at once.
+   */
+  function assignRoles(roleByPlayerId) {
+    if (!sessionRef) return Promise.resolve();
+    const updates = {};
+    Object.entries(roleByPlayerId).forEach(([pid, role]) => {
+      updates[`players/${pid}/role`] = role;
+    });
+    return sessionRef.update(updates);
+  }
+
+  /**
+   * Waits for THIS player's own role to actually appear, instead of
+   * reading once after a fixed delay (which could read null if the
+   * host was still writing the assignment).
+   */
+  function waitForOwnRole(timeoutMs = 8000) {
+    if (!sessionRef || !playerId) return Promise.resolve(null);
+    return new Promise(resolve => {
+      const ref = sessionRef.child(`players/${playerId}/role`);
+      let done = false;
+      let timer = null;
+
+      const finish = (val) => {
+        if (done) return;
+        done = true;
+        ref.off('value', handler);
+        if (timer) clearTimeout(timer);
+        resolve(val || null);
+      };
+
+      const handler = snap => {
+        const val = snap.val();
+        if (val) finish(val);
+      };
+
+      ref.on('value', handler);
+      timer = setTimeout(() => {
+        ref.once('value').then(snap => finish(snap.val()));
+      }, timeoutMs);
+    });
+  }
+
   async function getPlayerCount() {
     if (!sessionRef) return 0;
     const snapshot = await sessionRef.child('players').once('value');
@@ -437,6 +535,11 @@ const Session = (() => {
     onDispute,
     leave,
     submitAnswer,
-    waitForAnswers
+    waitForAnswers,
+    submitObserverChoice,
+    waitForObserverChoice,
+    getSession,
+    assignRoles,
+    waitForOwnRole
   };
 })();

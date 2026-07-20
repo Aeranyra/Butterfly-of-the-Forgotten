@@ -59,10 +59,53 @@ const GameState = (() => {
 })();
 
 /**
- * GAME-SPECIFIC STATE HELPERS
- * These give the rest of the game a clean vocabulary to work with,
- * built on top of the generic layer above.
+ * ENDINGS JOURNAL
+ * ------------------------------------------------------------
+ * Tracks which of the game's endings this browser has unlocked, as a
+ * light "collection" incentive for replaying. Deliberately backed by
+ * localStorage (not the sessionStorage-backed GameState above) since
+ * this is meant to persist across full browser restarts, not just
+ * page reloads within one play session.
+ * ------------------------------------------------------------
  */
+const EndingsJournal = (() => {
+  const KEY = 'butterfly_endings_unlocked';
+  const ALL_ENDINGS = [
+    'trueEnding', 'betrayalEnding', 'forgottenEnding',
+    'observerEscape', 'observerStay', 'observerSacrifice',
+    'secretButterfly'
+  ];
+
+  function _load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function unlock(endingKey) {
+    const current = _load();
+    if (!ALL_ENDINGS.includes(endingKey)) return current;
+    if (!current.includes(endingKey)) {
+      current.push(endingKey);
+      try { localStorage.setItem(KEY, JSON.stringify(current)); } catch (e) {}
+    }
+    return current;
+  }
+
+  function getUnlocked() {
+    return _load();
+  }
+
+  function totalCount() {
+    return ALL_ENDINGS.length;
+  }
+
+  return { unlock, getUnlocked, totalCount, ALL_ENDINGS };
+})();
 
 const Player = {
   init() {
