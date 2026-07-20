@@ -324,17 +324,19 @@ body {
 
 .click-to-begin {
   position: absolute;
-  bottom: 6%;
+  bottom: 3%;
   left: 0;
   right: 0;
   text-align: center;
   font-family: var(--font-ui);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--text-dim);
   animation: pulseFade 2.6s ease-in-out infinite;
   z-index: 1;
+  /* Safe zone — consequence messages sit at bottom:22%, click hint at 3%,
+     leaving plenty of space between them so they never overlap */
 }
 
 @keyframes pulseFade {
