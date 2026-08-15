@@ -12,6 +12,7 @@
 
 const Trust = (() => {
   let value = 60; // mid-default for solo testing; group sessions start elsewhere
+  let displayedValue = null; // last value the indicator actually rendered, for pulse detection
 
   function _render() {
     const el = document.querySelector('.trust-indicator');
@@ -24,6 +25,16 @@ const Trust = (() => {
     } else {
       el.style.background = 'var(--accent-violet-bright)';
     }
+
+    // Brief glow pulse when the value actually moves — makes a shared
+    // group change (someone else's choice) noticeable, not just a
+    // silent width shift.
+    if (displayedValue !== null && displayedValue !== value) {
+      el.classList.remove('trust-pulse');
+      void el.offsetWidth; // restart the animation if it's already mid-pulse
+      el.classList.add('trust-pulse');
+    }
+    displayedValue = value;
   }
 
   function get() {

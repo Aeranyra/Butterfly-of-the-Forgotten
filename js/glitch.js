@@ -9,6 +9,10 @@ const GlitchDialogue = (() => {
   // than neutral punctuation, so a scramble reads as "wrong" not just "garbled"
   const FAKE_CHARS = ['#', '¬', '§', '±', '¤', '☖', '✕', '͏', '꙰', '0', '1'];
 
+  function _prefersReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
   function _tierFromSanity(sanity) {
     if (sanity >= 60) return 'stable';
     if (sanity >= 30) return 'distorted';
@@ -45,6 +49,27 @@ const GlitchDialogue = (() => {
     el.setAttribute('data-glitch-text', text);
     el.classList.add('glitch-active');
     if (tier === 'lost' || persist) el.classList.add('intensity-lost');
+
+    if (_prefersReducedMotion()) {
+      // The rapid scramble/flicker (up to 10 pulses at 55-90ms each) is
+      // exactly the kind of fast flashing reduced-motion is meant to
+      // avoid. Skip straight to a single static "wrong" beat instead:
+      // one scramble frame held briefly, then the true text — same
+      // "this line is corrupted" read, no flicker.
+      AudioManager.playStatic(intensity);
+      _scrambleOnce(el, text, intensity);
+      setTimeout(() => {
+        el.textContent = text;
+        el.setAttribute('data-glitch-text', text);
+        if (persist) {
+          el.classList.add('glitch-persist');
+        } else {
+          el.classList.remove('glitch-active', 'intensity-lost');
+          el.removeAttribute('data-glitch-text');
+        }
+      }, 400);
+      return;
+    }
 
     const pulses = tier === 'stable' ? 3 : tier === 'distorted' ? 6 : 10;
     const pulseSpeed = tier === 'lost' ? 55 : 90;

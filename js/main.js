@@ -169,7 +169,7 @@
     btn.textContent = savedMuted ? '🔇' : '🔊';
     btn.setAttribute('aria-label', 'Toggle sound');
     btn.style.cssText = `
-      position: fixed; top: 4%; right: 4%; z-index: 999;
+      position: fixed; bottom: 4%; right: 4%; z-index: 999;
       background: rgba(10,9,12,0.82); border: 1px solid rgba(232,230,224,0.2);
       color: rgba(232,230,224,0.85); font-size: 1.05rem; line-height: 1;
       width: 2.3rem; height: 2.3rem; border-radius: 50%;
@@ -2625,20 +2625,44 @@
       codeDisplay.textContent = code;
       stopButterflies = Butterfly.ambient(sceneEl, 3500);
 
-      // Solo-testing convenience: lets you proceed alone without 4 others
-      // joining. Safe to remove once real 5-player testing begins.
-      const soloSkip = document.createElement('button');
-      soloSkip.className = 'menu-option';
-      soloSkip.style.marginTop = '1.5rem';
-      soloSkip.style.opacity = '0.5';
-      soloSkip.textContent = '(solo test: continue without waiting)';
-      soloSkip.addEventListener('click', () => {
-        if (!entryStarted) {
-          entryStarted = true;
-          beginSynchronizedEntry();
+      // Copy-code button — saves players from reading/typing a 5-char
+      // code out loud or across a chat manually.
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'menu-option';
+      copyBtn.style.marginTop = '1rem';
+      copyBtn.style.fontSize = '0.75rem';
+      copyBtn.textContent = 'Copy code';
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(code);
+          copyBtn.textContent = 'Copied!';
+        } catch (e) {
+          // Clipboard API can fail (permissions, insecure context) —
+          // fall back to a manual-select hint rather than doing nothing.
+          copyBtn.textContent = 'Select the code above';
         }
+        setTimeout(() => { copyBtn.textContent = 'Copy code'; }, 1800);
       });
-      waitingContent.appendChild(soloSkip);
+      waitingContent.appendChild(copyBtn);
+
+      // Solo-testing convenience: lets you proceed alone without 4 others
+      // joining. Gated behind ?debug=1 so real players in a real session
+      // never see a button that could desync the group by skipping ahead
+      // of everyone else still waiting.
+      if (new URLSearchParams(window.location.search).get('debug') === '1') {
+        const soloSkip = document.createElement('button');
+        soloSkip.className = 'menu-option';
+        soloSkip.style.marginTop = '1.5rem';
+        soloSkip.style.opacity = '0.5';
+        soloSkip.textContent = '(solo test: continue without waiting)';
+        soloSkip.addEventListener('click', () => {
+          if (!entryStarted) {
+            entryStarted = true;
+            beginSynchronizedEntry();
+          }
+        });
+        waitingContent.appendChild(soloSkip);
+      }
 
       Session.onUpdate(session => {
         try {
