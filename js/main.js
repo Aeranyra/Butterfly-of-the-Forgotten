@@ -268,6 +268,57 @@
     document.getElementById('close-credits').addEventListener('click', () => {
       document.getElementById('modal-credits').classList.remove('active');
     });
+
+    // Solo test shortcut — debug-only. Skips the intro/personality/name
+    // screens, auto-fills a test name, creates a session, and clicks the
+    // existing solo-skip button once it appears — reusing the real create
+    // → waiting-room → entry flow via simulated clicks rather than a
+    // separate bypass, so this never drifts out of sync with it.
+    if (new URLSearchParams(window.location.search).get('debug') === '1') {
+      const soloBtn = document.createElement('button');
+      soloBtn.id = 'btn-solo-test';
+      soloBtn.textContent = '⚡ Solo Test (skip intro)';
+      soloBtn.style.cssText = `
+        position: fixed; bottom: 4%; left: 4%; z-index: 999;
+        background: rgba(10,9,12,0.82); border: 1px solid rgba(176,68,68,0.4);
+        color: rgba(232,230,224,0.85); font-size: 0.7rem; letter-spacing: 0.06em;
+        padding: 0.45rem 0.8rem; border-radius: 4px; cursor: pointer;
+        font-family: 'Jost', sans-serif;
+      `;
+      soloBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        soloBtn.disabled = true;
+        soloBtn.textContent = 'Starting…';
+
+        // Counts as the user gesture audio/cursor-trail unlock needs.
+        AudioManager.unlock('menu');
+        startAmbience();
+        startCursorTrail();
+
+        Player.setName('Tester');
+        Horror.init();
+        goToScene('scene-lobby');
+        AudioManager.play('nameInput');
+        runLobby();
+
+        // Let runLobby's own listeners attach before driving it.
+        await new Promise(r => setTimeout(r, 50));
+        const createBtn = document.getElementById('btn-lobby-create');
+        if (createBtn) createBtn.click();
+
+        // Poll for the solo-skip button (appears once the waiting room
+        // renders) and click it as soon as it's there.
+        const poll = setInterval(() => {
+          const skipBtn = document.getElementById('btn-solo-skip');
+          if (skipBtn) {
+            clearInterval(poll);
+            skipBtn.click();
+          }
+        }, 150);
+        setTimeout(() => clearInterval(poll), 15000); // safety stop
+      });
+      document.body.appendChild(soloBtn);
+    }
   }
 
   // ====================================================================
@@ -2651,6 +2702,7 @@
       // of everyone else still waiting.
       if (new URLSearchParams(window.location.search).get('debug') === '1') {
         const soloSkip = document.createElement('button');
+        soloSkip.id = 'btn-solo-skip';
         soloSkip.className = 'menu-option';
         soloSkip.style.marginTop = '1.5rem';
         soloSkip.style.opacity = '0.5';
